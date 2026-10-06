@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  fraterno-app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgres://postgres:db2025**@n8n_db_postgres:5432/db_elefante?sslmode=disable
+    restart: always

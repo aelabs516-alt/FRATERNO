@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRATERNO - Sistema de Reservas y Manifiesto</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- pdf-lib for PDF modification and merging -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="light-mode">
+    
+    <!-- System Header -->
+    <header class="system-header glass-header" id="main-header">
+        <div class="header-left">
+            <button id="mobile-menu-btn" class="icon-btn mobile-only"><i class="fas fa-bars"></i></button>
+            <div class="logo" style="display: flex; align-items: center; justify-content: center; padding-left: 0.5rem;">
+                <img src="img/logo.png" alt="Fraterno Paracaidismo" style="height: 84px; width: auto; object-fit: contain;">
+            </div>
+        </div>
+        <div class="header-center clock-widget" style="flex-direction: column; align-items: center; gap: 0.1rem; line-height: 1.2;">
+            <div style="font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/2/21/Flag_of_Colombia.svg" alt="Colombia" style="width: 20px; height: auto; border-radius: 2px;"> - <span id="header-date">-- ----- ----</span>
+            </div>
+            <div style="font-size: 0.85rem; font-family: monospace; color: var(--brand-action); font-weight: 600;">
+                <span id="local-time">--:--</span> <span style="color:var(--text-secondary); margin:0 0.5rem;">|</span> <span id="utc-time">--:-- UTC</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="lang-selector">
+                <select id="lang-select">
+                    <option value="ES">ES</option>
+                    <option value="EN">EN</option>
+                </select>
+            </div>
+            
+            <!-- Dark Mode Switch -->
+            <div class="theme-switch-wrapper">
+                <span style="font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; color: var(--text-primary);">MODO OSCURO</span>
+                <label class="theme-switch" for="checkbox-theme">
+                    <input type="checkbox" id="checkbox-theme" />
+                    <div class="slider round">
+                        <span class="on">ON</span>
+                        <span class="off">OFF</span>
+                    </div>
+                </label>
+            </div>
+
+        </div>
+    </header>
+
+    <div class="app-container" id="app-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="user-profile" id="sidebar-user-profile">
+                <div class="avatar"><img src="https://i.pravatar.cc/150?img=11" alt="User"></div>
+                <div class="user-info">
+                    <h4>Admin User</h4>
+                    <span class="role">[Administrador]</span>
+                </div>
+            </div>
+            <nav class="nav-menu" id="sidebar-nav">
+                <a href="#/" class="nav-item active" data-route="/"><i class="fas fa-home"></i> Itinerario</a>
+                <a href="#/dashboard" class="nav-item" data-route="/dashboard"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="#/reservas" class="nav-item" data-route="/reservas"><i class="fas fa-calendar-alt"></i> Reservas</a>
+                <a href="#/registro-salto" class="nav-item" data-route="/registro-salto"><i class="fas fa-inbox"></i> Registro de Salto</a>
+                <a href="#/checkin" class="nav-item" data-route="/checkin"><i class="fas fa-clipboard-check"></i> Check-in</a>
+                <a href="#/manifiesto" class="nav-item" data-route="/manifiesto"><i class="fas fa-plane-departure"></i> Manifiesto</a>
+                <a href="#/fids" class="nav-item" data-route="/fids"><i class="fas fa-tv"></i> Pantalla FIDS</a>
+                <a href="#/videografia" class="nav-item" data-route="/videografia"><i class="fas fa-video"></i> Videografía</a>
+                <a href="#/facturacion" class="nav-item" data-route="/facturacion"><i class="fas fa-file-invoice-dollar"></i> Facturación</a>
+                <a href="#/tienda" class="nav-item" data-route="/tienda"><i class="fas fa-shopping-basket"></i> Ventas Tienda</a>
+                <a href="#/generar-factura" class="nav-item" data-route="/generar-factura"><i class="fas fa-file-invoice"></i> Generar Factura</a>
+                <a href="#/caja" class="nav-item" data-route="/caja"><i class="fas fa-cash-register"></i> Caja Menor</a>
+                <a href="#/flota" class="nav-item" data-route="/flota"><i class="fas fa-plane"></i> Asignación de Flota</a>
+                <a href="#/inventario" class="nav-item" data-route="/inventario"><i class="fas fa-boxes"></i> Inventario</a>
+                <a href="#/asignacion" class="nav-item" data-route="/asignacion"><i class="fas fa-people-carry"></i> Asignación de Recursos</a>
+                <a href="#/rrhh" class="nav-item" data-route="/rrhh"><i class="fas fa-users"></i> RRHH y Tiempos</a>
+                <a href="#/historial" class="nav-item" data-route="/historial"><i class="fas fa-history"></i> Consulta Historial</a>
+                <a href="#/configuracion" class="nav-item" data-route="/configuracion"><i class="fas fa-cog"></i> Configuración</a>
+                <div class="nav-separator"></div>
+                <a href="#/b2c" class="nav-item b2c-link" data-route="/b2c"><i class="fas fa-mobile-alt"></i> Portal B2C (Cliente)</a>
+                <a href="#/autogestion" class="nav-item b2c-link" data-route="/autogestion"><i class="fas fa-globe"></i> Portal Autogestión</a>
+
+            </nav>
+            <div class="sidebar-footer">
+                <button class="btn-support"><i class="fas fa-headset"></i> Soporte</button>
+                <button class="btn-logout"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div id="app-view">
+                <!-- Modules will be injected here by app.js -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="./js/components.js"></script>
+    <script src="./js/modules/login.js"></script>
+    <script src="./js/modules/home.js"></script>
+    <script src="./js/modules/dashboard.js"></script>
+    <script src="./js/modules/booking.js?v=1.1"></script>
+
+    <script src="./js/modules/reservations.js?v=1.1"></script>
+    <script src="./js/modules/b2c-form.js"></script>
+    <script src="./js/modules/billing.js?v=1.1"></script>
+    <script src="./js/modules/store.js"></script>
+    <script src="./js/modules/checkin.js?v=1.1"></script>
+    <script src="./js/modules/manifest.js"></script>
+    <script src="./js/modules/settings.js"></script>
+    <script src="./js/modules/historySearch.js"></script>
+
+    <script src="./js/modules/autogestion.js"></script>
+    <script src="./js/modules/fleet.js"></script>
+    <script src="./js/modules/hrms.js"></script>
+    <script src="./js/modules/inventory.js"></script>
+    <script src="./js/modules/assignment.js"></script>
+    <script src="./js/modules/finance.js"></script>
+    <script src="./js/modules/fids.js"></script>
+    <script src="./js/modules/media.js"></script>
+    <script src="./js/modules/invoicing.js?v=1.1"></script>
+    <script src="./js/app.js"></script>
+</body>
+</html>

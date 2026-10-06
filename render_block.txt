@@ -1,0 +1,354 @@
+render: (container) => {
+        container.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2>Facturación y Reportes</h2>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Gestión de ingresos de la empresa y cálculo de nómina técnica.</p>
+
+            <!-- Tabs Navigation -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;" id="billing-tabs">
+                <button class="btn btn-primary" data-target="ingresos"><i class="fas fa-chart-bar"></i> Reporte de Ingresos</button>
+                <button class="btn" style="background: var(--bg-surface-hover); color: var(--text-primary);" data-target="liquidacion"><i class="fas fa-money-check-alt"></i> Liquidación de Instructores</button>
+                <button class="btn" style="background: var(--bg-surface-hover); color: var(--text-primary);" data-target="empacadores"><i class="fas fa-box-open"></i> Liquidación de Empacadores</button>
+                <button class="btn" style="background: var(--bg-surface-hover); color: var(--text-primary);" data-target="factura"><i class="fas fa-file-invoice"></i> Generar Factura</button>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 1. Reporte de Ingresos                         -->
+            <!-- ============================================== -->
+            <div id="content-ingresos" class="billing-content" style="display: block;">
+                <div class="card" style="background: var(--bg-surface-hover); margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label>Desde</label>
+                            <input type="date" class="form-control">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label>Hasta</label>
+                            <input type="date" class="form-control">
+                        </div>
+                        <button class="btn btn-primary" style="height: 42px; margin-bottom: 2px;"><i class="fas fa-filter"></i> Filtrar</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Ingresos por Servicios</h3>
+                        <button class="btn btn-success" id="btn-export-ingresos" style="padding: 0.5rem 1rem;"><i class="fas fa-file-excel"></i> Exportar Ingresos</button>
+                    </div>
+                    
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                            <thead>
+                                <tr style="background: var(--bg-surface-hover); border-bottom: 2px solid var(--border-color);">
+                                    <th style="padding: 1rem;">Pasajero</th>
+                                    <th style="padding: 1rem;">Tipo Salto</th>
+                                    <th style="padding: 1rem;">Adicionales</th>
+                                    <th style="padding: 1rem;">V. Base</th>
+                                    <th style="padding: 1rem;">V. Kilos Ext.</th>
+                                    <th style="padding: 1rem;">V. Cámaras</th>
+                                    <th style="padding: 1rem; color: var(--brand-success);">Total Cobrado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid var(--border-color);">
+                            <tbody id="tbody-ingresos">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: var(--bg-surface-hover); font-weight: 700;">
+                                    <td style="padding: 1rem;" colspan="6">TOTAL INGRESOS PERÍODO</td>
+                                    <td style="padding: 1rem; font-size: 1.2rem; color: var(--brand-success);" id="tfoot-ingresos-total">$0</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 2. Liquidación Instructores                    -->
+            <!-- ============================================== -->
+            <div id="content-liquidacion" class="billing-content" style="display: none;">
+                <div class="card" style="background: var(--bg-surface-hover); margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+                            <label>Instructor</label>
+                            <select id="billing-instructor-filter" class="form-control">
+                                <option value="todos">Todos los Instructores</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label>Desde</label>
+                            <input type="date" class="form-control">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label>Hasta</label>
+                            <input type="date" class="form-control">
+                        </div>
+                        <button class="btn btn-primary" style="height: 42px; margin-bottom: 2px;"><i class="fas fa-filter"></i> Filtrar</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Reporte de Liquidación (Nómina)</h3>
+                        <button class="btn btn-success" style="padding: 0.5rem 1rem;"><i class="fas fa-file-excel"></i> Exportar Liquidación</button>
+                    </div>
+                    
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; min-width: 900px;">
+                            <thead>
+                                <tr style="background: var(--bg-surface-hover); border-bottom: 2px solid var(--border-color);">
+                                    <th style="padding: 1rem; width: 40px;"><input type="checkbox" id="chk-all-nomina" style="cursor: pointer;"></th>
+                                    <th style="padding: 1rem;">Instructor</th>
+                                    <th style="padding: 1rem;">Fecha</th>
+                                    <th style="padding: 1rem;">Saltos</th>
+                                    <th style="padding: 1rem;">Kilos Extras</th>
+                                    <th style="padding: 1rem;">Cámara 360</th>
+                                    <th style="padding: 1rem;">Cámara Ext.</th>
+                                    <th style="padding: 1rem;">Honorarios Base</th>
+                                    <th style="padding: 1rem;">Honorarios Extras</th>
+                                    <th style="padding: 1rem; color: var(--brand-action);">Neto a Pagar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-nomina">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: var(--bg-surface-hover); font-weight: 700;">
+                                    <td style="padding: 1rem;" colspan="9">TOTAL NÓMINA TÉCNICA</td>
+                                    <td style="padding: 1rem; font-size: 1.2rem; color: var(--brand-action);" id="tfoot-nomina-total">$0</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 3. Liquidación Empacadores                     -->
+            <!-- ============================================== -->
+            <div id="content-empacadores" class="billing-content" style="display: none;">
+                <div class="card" style="background: var(--bg-surface-hover); margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+                            <label>Empacador</label>
+                            <select id="billing-empacador-select" class="form-control">
+                                <option value="">Seleccione un Empacador</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label>Fecha</label>
+                            <input type="date" id="billing-empacador-date" class="form-control">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label>Empaques Realizados</label>
+                            <input type="number" id="billing-empacador-count" class="form-control" min="1" placeholder="Ej. 15">
+                        </div>
+                        <button id="btn-add-empaque" class="btn btn-primary" style="height: 42px; margin-bottom: 2px;"><i class="fas fa-plus"></i> Registrar</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Historial de Empaques y Liquidación</h3>
+                    </div>
+                    
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; min-width: 700px;">
+                            <thead>
+                                <tr style="background: var(--bg-surface-hover); border-bottom: 2px solid var(--border-color);">
+                                    <th style="padding: 1rem;">Fecha</th>
+                                    <th style="padding: 1rem;">Empacador</th>
+                                    <th style="padding: 1rem;">Empaques</th>
+                                    <th style="padding: 1rem;">Tarifa Unitaria</th>
+                                    <th style="padding: 1rem; color: var(--brand-action);">Neto a Pagar</th>
+                                    <th style="padding: 1rem; width: 60px;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-empacadores">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: var(--bg-surface-hover); font-weight: 700;">
+                                    <td style="padding: 1rem;" colspan="4">TOTAL A PAGAR (EMPAQUES)</td>
+                                    <td style="padding: 1rem; font-size: 1.2rem; color: var(--brand-action);" id="tfoot-empacadores-total" colspan="2">$0</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            <!-- ============================================== -->
+            <!-- 4. Factura Cliente                             -->
+            <!-- ============================================== -->
+            <div id="content-factura" class="billing-content" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+                    <!-- LEFT PANE: Form -->
+                    <div class="card" style="margin-bottom: 0;">
+                        <h3 style="margin-bottom: 1rem; color: var(--brand-action);"><i class="fas fa-user-edit"></i> Información del Cliente</h3>
+                        
+                        <div class="form-group">
+                            <label>Fecha</label>
+                            <input type="date" id="factura-fecha" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre / Razón Social</label>
+                            <input type="text" id="factura-nombre" class="form-control" placeholder="Nombre completo o Empresa">
+                        </div>
+                        <div class="form-group">
+                            <label>NIT / CC</label>
+                            <input type="text" id="factura-id" class="form-control" placeholder="123456789">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>Departamento</label>
+                                <select id="factura-depto" class="form-control">
+                                    <option value="" disabled selected>Seleccione...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Ciudad / Municipio</label>
+                                <select id="factura-ciudad" class="form-control" disabled>
+                                    <option value="" disabled selected>Seleccione Depto primero</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Dirección</label>
+                            <input type="text" id="factura-dir" class="form-control" placeholder="Calle 123 #45-67">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>Teléfono (Solo números)</label>
+                                <input type="text" id="factura-tel" class="form-control" maxlength="14" placeholder="3001234567">
+                            </div>
+                            <div class="form-group">
+                                <label>Correo Electrónico</label>
+                                <input type="email" id="factura-email" class="form-control" placeholder="correo@ejemplo.com">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Observaciones</label>
+                            <textarea id="factura-obs" class="form-control" rows="2" placeholder="Notas adicionales..."></textarea>
+                        </div>
+                        
+                        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 1.5rem 0;">
+                        
+                        <h3 style="margin-bottom: 1rem; color: var(--brand-success);"><i class="fas fa-cart-plus"></i> Agregar Ítem</h3>
+                        <div style="display: flex; gap: 0.5rem; align-items: flex-end; margin-bottom: 1rem;">
+                            <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                                <label>Descripción</label>
+                                <input type="text" id="factura-item-desc" class="form-control" placeholder="Ej. Salto Tándem">
+                            </div>
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                                <label>Cant.</label>
+                                <input type="number" id="factura-item-qty" class="form-control" value="1" min="1">
+                            </div>
+                            <div class="form-group" style="flex: 1.5; margin-bottom: 0;">
+                                <label>V. Unitario ($)</label>
+                                <input type="number" id="factura-item-price" class="form-control" placeholder="700000">
+                            </div>
+                            <button class="btn btn-success" id="btn-add-factura-item" style="height: 42px; margin-bottom: 2px;"><i class="fas fa-plus"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PANE: Preview & Export -->
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <button id="btn-exportar-factura" class="btn btn-primary" style="padding: 1rem; font-size: 1.1rem; width: 100%; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.3);">
+                            <i class="fas fa-file-pdf"></i> Generar y Descargar Factura PDF
+                        </button>
+
+                        <div class="card" id="factura-preview" style="background: #ffffff; color: #333333; padding: 2rem; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); min-height: 500px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+                            
+                            <!-- Header Factura -->
+                            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 1rem; margin-bottom: 1rem;">
+                                <div>
+                                    <h2 style="margin: 0; color: #111; font-weight: 900; letter-spacing: -1px; font-size: 24px;">FRATERNO PARACAIDISMO</h2>
+                                    <p style="margin: 0.2rem 0 0 0; font-size: 12px; color: #666;">NIT: 901.234.567-8</p>
+                                    <p style="margin: 0; font-size: 12px; color: #666;">Ricaurte, Cundinamarca</p>
+                                    <p style="margin: 0; font-size: 12px; color: #666;">info@fraternoparacaidismo.com</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <h2 style="margin: 0; color: #111; font-size: 24px;">FACTURA DE VENTA</h2>
+                                    <h3 style="margin: 0.5rem 0 0 0; color: #d32f2f; font-size: 20px;">N° <span id="prev-factura-num">0001</span></h3>
+                                    <p style="margin: 0.2rem 0 0 0; font-size: 12px; color: #666;">Fecha: <span id="prev-fecha"></span></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Info Cliente -->
+                            <div style="background: #f9f9f9; padding: 1rem; border: 1px solid #eee; border-radius: 4px; margin-bottom: 1.5rem; font-size: 13px;">
+                                <div style="display: grid; grid-template-columns: 100px 1fr; margin-bottom: 0.4rem;">
+                                    <strong style="color: #444;">Cliente:</strong> <span id="prev-nombre"></span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 100px 1fr; margin-bottom: 0.4rem;">
+                                    <strong style="color: #444;">NIT/CC:</strong> <span id="prev-id"></span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 100px 1fr; margin-bottom: 0.4rem;">
+                                    <strong style="color: #444;">Dirección:</strong> <span id="prev-dir"></span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 100px 1fr; margin-bottom: 0.4rem;">
+                                    <strong style="color: #444;">Ubicación:</strong> <span id="prev-ubicacion"></span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 100px 1fr; margin-bottom: 0.4rem;">
+                                    <strong style="color: #444;">Teléfono:</strong> <span id="prev-tel"></span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 100px 1fr;">
+                                    <strong style="color: #444;">Correo:</strong> <span id="prev-email"></span>
+                                </div>
+                            </div>
+
+                            <!-- Tabla Items -->
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 13px;">
+                                <thead>
+                                    <tr style="background: #333; color: white;">
+                                        <th style="padding: 0.5rem; text-align: left;">Descripción</th>
+                                        <th style="padding: 0.5rem; text-align: center; width: 60px;">Cant.</th>
+                                        <th style="padding: 0.5rem; text-align: right; width: 100px;">V. Unitario</th>
+                                        <th style="padding: 0.5rem; text-align: right; width: 100px;">Total</th>
+                                        <th style="width: 30px; background: transparent;" class="no-print"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prev-items-body">
+                                    <!-- Items go here -->
+                                </tbody>
+                            </table>
+
+                            <!-- Totales -->
+                            <div style="display: flex; justify-content: flex-end; margin-bottom: 2rem;">
+                                <div style="width: 250px; background: #f9f9f9; padding: 1rem; border: 1px solid #eee; border-radius: 4px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 13px;">
+                                        <span>Subtotal:</span>
+                                        <span id="prev-subtotal">$0</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 13px;">
+                                        <span>IVA (19%):</span>
+                                        <span id="prev-iva">$0</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; border-top: 1px solid #ccc; padding-top: 0.5rem; margin-top: 0.5rem;">
+                                        <span>TOTAL:</span>
+                                        <span id="prev-total">$0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Observaciones -->
+                            <div style="font-size: 12px; color: #666; border-top: 1px dashed #ccc; padding-top: 1rem;">
+                                <strong>Observaciones:</strong>
+                                <p id="prev-obs" style="margin: 0.2rem 0 0 0; white-space: pre-wrap;"></p>
+                            </div>
+                            
+                            <div style="text-align: center; margin-top: 2rem; font-size: 11px; color: #999;">
+                                Documento generado por Fraterno Paracaidismo Software
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+        `;
+    },
+    
