@@ -125,13 +125,27 @@ window.Modules.historySearch = {
                         phone: p.phone || 'S/D',
                         email: p.email || 'S/D',
                         jumps: [],
-                        signature: null
+                        signature: null,
+                        signatureMinor: null,
+                        selfie: null,
+                        signedAt: null,
+                        paymentSupport: null
                     });
                 }
                 const client = paxMap.get(key);
                 client.jumps.push(p);
-                if (p.signature && !client.signature) {
-                    client.signature = p.signature;
+                // Conservar los datos más recientes diligenciados para Ficha Informativa y Exoneración
+                ['docType', 'date', 'type', 'cams', 'dob', 'weight', 'country', 'state', 'city', 'address', 'occupation', 'occupationOther', 'favActivities', 'contactMethod', 'advisor', 'medicalCondition'].forEach(field => {
+                    if (p[field] && (!client[field] || p.b2cCompleted)) {
+                        client[field] = p[field];
+                    }
+                });
+                if (p.signature) client.signature = p.signature;
+                if (p.signatureMinor) client.signatureMinor = p.signatureMinor;
+                if (p.selfie) client.selfie = p.selfie;
+                if (p.signedAt) client.signedAt = p.signedAt;
+                if (p.paymentSupport || p.soportePago) {
+                    client.paymentSupport = p.paymentSupport || { dataUrl: p.soportePago };
                 }
             });
 
@@ -204,7 +218,7 @@ window.Modules.historySearch = {
         function openDetailsModal(client) {
             let jumpsHtml = '';
             
-            client.jumps.forEach(j => {
+            client.jumps.forEach((j, jIdx) => {
                 let statusColor = 'var(--text-secondary)';
                 if (j.paxStatus === 'Check-in Listo') statusColor = 'var(--brand-action)';
                 if (j.paxStatus === 'Completado') statusColor = 'var(--brand-success)';
@@ -212,21 +226,27 @@ window.Modules.historySearch = {
                 
                 // Documents section
                 const docBadge = j.waiverSigned 
-                    ? '<span style="color: var(--brand-success);"><i class="fas fa-file-signature"></i> Waiver Firmado</span>' 
+                    ? '<span style="color: var(--brand-success);"><i class="fas fa-file-signature"></i> 4 Docs Firmados</span>' 
                     : '<span style="color: var(--brand-danger);"><i class="fas fa-times-circle"></i> Waiver Pendiente</span>';
 
                 // Payments section
-                let pagado = 0;
-                let valorReserva = 0;
-                if (j.financiera) {
-                    valorReserva = (j.financiera.manualPrice || 0) - (j.financiera.discount || 0);
-                    if (j.financiera.totalPaid !== undefined) {
-                        pagado = j.financiera.totalPaid;
-                    }
-                }
-                const finStatus = pagado >= valorReserva && valorReserva > 0
-                    ? '<span style="color: var(--brand-success); font-weight:bold;">Pagado</span>'
-                    : '<span style="color: var(--brand-action); font-weight:bold;">Con Saldo Pendiente</span>';
+                const finSummary = window.getPaxFinancialSummary ? window.getPaxFinancialSummary(j) : {
+                    totalValue: ((j.financiera?.manualPrice || 0) - (j.financiera?.discount || 0)),
+                    totalPaid: (j.financiera?.totalPaid || 0),
+                    pending: Math.max(0, ((j.financiera?.manualPrice || 0) - (j.financiera?.discount || 0)) - (j.financiera?.totalPaid || 0)),
+                    isComplete: false
+                };
+                const valorReserva = finSummary.totalValue;
+                const pagado = finSummary.totalPaid;
+
+                const finStatus = finSummary.isComplete
+                    ? '<span style="color: var(--brand-success); font-weight:bold;"><i class="fas fa-check-circle"></i> Pago Completo</span>'
+                    : `<span style="color: var(--brand-danger); font-weight:bold;"><i class="fas fa-exclamation-triangle"></i> Pago Incompleto (Pendiente: ${formatCurrency(finSummary.pending)})</span>`;
+
+                const hasPaymentSupport = Boolean((j.paymentSupport && j.paymentSupport.dataUrl) || j.soportePago || (client.paymentSupport && client.paymentSupport.dataUrl));
+                const supportBtnHtml = hasPaymentSupport
+                    ? `<button type="button" class="btn btn-primary btn-sm btn-view-jump-support" data-jidx="${jIdx}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;"><i class="fas fa-file-invoice-dollar"></i> Ver Soporte de Pago B2C</button>`
+                    : `<span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-receipt"></i> Sin soporte B2C</span>`;
 
                 jumpsHtml += `
                     <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem;">
@@ -254,33 +274,105 @@ window.Modules.historySearch = {
                             </div>
                         </div>
 
-                        <div style="background: rgba(0,0,0,0.02); border: 1px dashed var(--border-color); padding: 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="background: rgba(0,0,0,0.02); border: 1px dashed var(--border-color); padding: 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
                             <div>
                                 <span style="display: block; font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.25rem;"><i class="fas fa-wallet"></i> Resumen de Pagos</span>
-                                <span style="font-size: 0.9rem;">Valor Base: <strong>${formatCurrency(valorReserva)}</strong> | Pagado: <strong>${formatCurrency(pagado)}</strong></span>
+                                <span style="font-size: 0.9rem;">Valor Total: <strong>${formatCurrency(valorReserva)}</strong> | Pagado: <strong>${formatCurrency(pagado)}</strong></span>
                             </div>
-                            <div>${finStatus}</div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                                ${finStatus}
+                                ${supportBtnHtml}
+                            </div>
                         </div>
                     </div>
                 `;
             });
 
-            
-            let signatureHtml = '';
-            if (client.signature) {
-                signatureHtml = `
-                <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 1.1rem;"><i class="fas fa-file-signature" style="color: var(--brand-action); margin-right: 0.5rem;"></i> Documento Legal y Firma (Exoneración de Responsabilidades)</h4>
-                    <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0; line-height: 1.6; font-style: italic;">"Al firmar este documento, declaro que he leído, entendido y aceptado todos los términos y condiciones, así como el documento de exoneración de responsabilidades inherentes a la práctica del paracaidismo. Asumo voluntariamente todos los riesgos."</p>
-                        <div style="margin-top: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.02); padding: 1.5rem; border-radius: 8px; border: 1px dashed var(--border-color);">
-                            <strong style="display: block; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 1px;">Firma del Pasajero</strong>
-                            <img src="${client.signature}" alt="Firma del Pasajero" style="max-width: 100%; height: 120px; background: white; border-radius: 4px; padding: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            // Soporte de Pago B2C Section (Req #10)
+            let paymentSupportSectionHtml = '';
+            if (client.paymentSupport && client.paymentSupport.dataUrl) {
+                const ps = client.paymentSupport;
+                const isPdfSupport = ps.dataUrl.startsWith('data:application/pdf') || (ps.fileName && ps.fileName.toLowerCase().endsWith('.pdf'));
+                paymentSupportSectionHtml = `
+                <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <h4 style="margin: 0; color: var(--text-primary); font-size: 1.1rem;">
+                            <i class="fas fa-file-invoice-dollar" style="color: var(--brand-success); margin-right: 0.5rem;"></i> Soporte de Pago Adjuntado (Portal B2C)
+                        </h4>
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-open-full-payment-support">
+                            <i class="fas fa-expand"></i> Ampliar / Descargar Comprobante
+                        </button>
+                    </div>
+                    <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                        <div>
+                            <div style="font-size: 0.9rem; margin-bottom: 0.25rem;"><strong>Medio de Pago:</strong> ${escapeHTML(ps.paymentMethod || 'Transferencia')}</div>
+                            <div style="font-size: 0.9rem; color: var(--text-secondary);"><strong>Fecha de Pago:</strong> ${escapeHTML(ps.paymentDate || client.latestJumpDate || 'Registrado')}</div>
+                        </div>
+                        <div>
+                            ${isPdfSupport
+                                ? `<span style="color: var(--brand-action); font-weight: 700;"><i class="fas fa-file-pdf"></i> Comprobante PDF Adjunto</span>`
+                                : `<img src="${ps.dataUrl}" alt="Soporte de Pago" style="height: 85px; border-radius: 6px; border: 1px solid var(--border-color); object-fit: contain; background: #fff; padding: 4px; cursor: pointer;" id="img-thumb-payment-support">`
+                            }
                         </div>
                     </div>
                 </div>
                 `;
             }
+
+            // All 4 Legal Acceptance Documents with Passenger Signature Embedded (Req #3)
+            const docsCatalog = window.LegalDocsHelper ? window.LegalDocsHelper.getDocsCatalog('es') : [
+                { key: 'bienvenida', num: 1, title: '1. Guía de Bienvenida' },
+                { key: 'terminos', num: 2, title: '2. Términos y Condiciones de la Operación' },
+                { key: 'ficha', num: 3, title: '3. Ficha Informativa y Autorización de Datos' },
+                { key: 'exoneracion', num: 4, title: '4. Exoneración de Responsabilidad' }
+            ];
+
+            const hasSignature = Boolean(client.signature || (client.signatureMinor && (client.signatureMinor.mother || client.signatureMinor.father)));
+            const sigImgSrc = client.signature || (client.signatureMinor && client.signatureMinor.mother) || '';
+
+            const legalDocsCardsHtml = docsCatalog.map(docItem => `
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem; box-shadow: var(--shadow-sm);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+                        <div>
+                            <strong style="color: var(--text-primary); font-size: 0.95rem; display: block;">${escapeHTML(docItem.title)}</strong>
+                            <span style="font-size: 0.8rem; color: ${hasSignature ? 'var(--brand-success)' : 'var(--brand-warning)'}; font-weight: 600;">
+                                <i class="fas ${hasSignature ? 'fa-check-circle' : 'fa-clock'}"></i> ${hasSignature ? 'Aceptado y Firmado por el Pasajero' : 'Pendiente de Firma Digital'}
+                            </span>
+                        </div>
+                        <i class="fas fa-file-signature" style="font-size: 1.35rem; color: var(--brand-action);"></i>
+                    </div>
+                    ${hasSignature ? `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; background: var(--bg-surface-hover); padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px dashed var(--border-color);">
+                            <img src="${sigImgSrc}" alt="Firma" style="height: 38px; background: #fff; border-radius: 4px; padding: 2px 6px; border: 1px solid var(--border-color);">
+                            <span style="font-size: 0.78rem; color: var(--text-secondary);">Firma insertada en documento (${escapeHTML(client.name)})</span>
+                        </div>
+                    ` : ''}
+                    <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+                        <button type="button" class="btn btn-primary btn-sm btn-preview-legal-doc" data-doc-key="${docItem.key}" style="flex: 1; padding: 0.45rem; font-size: 0.82rem;">
+                            <i class="fas fa-eye"></i> Ver Documento
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm btn-dl-legal-doc" data-doc-key="${docItem.key}" style="flex: 1; padding: 0.45rem; font-size: 0.82rem;">
+                            <i class="fas fa-file-pdf"></i> PDF Firmado
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            const signatureHtml = `
+                <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <h4 style="margin: 0; color: var(--text-primary); font-size: 1.1rem;">
+                            <i class="fas fa-file-contract" style="color: var(--brand-action); margin-right: 0.5rem;"></i> Documentos de Aceptación Legal (Con Firma del Pasajero)
+                        </h4>
+                        <button type="button" id="btn-dl-consolidated-history" class="btn btn-primary btn-sm" style="padding: 0.45rem 0.9rem; font-size: 0.82rem;">
+                            <i class="fas fa-layer-group"></i> Descargar 4 Docs Consolidados (PDF)
+                        </button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        ${legalDocsCardsHtml}
+                    </div>
+                </div>
+            `;
 
             detailsBody.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; background: var(--bg-surface-hover); padding: 1.5rem; border-radius: 8px;">
@@ -307,11 +399,63 @@ window.Modules.historySearch = {
                     <span style="background: var(--brand-action); color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold;">Total: ${client.jumps.length}</span>
                 </div>
                 
-                <div style="max-height: 450px; overflow-y: auto; padding-right: 0.5rem;">
+                <div style="max-height: 360px; overflow-y: auto; padding-right: 0.5rem;">
                     ${jumpsHtml}
                 </div>
-            ${signatureHtml}
+                ${paymentSupportSectionHtml}
+                ${signatureHtml}
             `;
+
+            // Bind buttons for Legal Documents Preview & Download
+            detailsBody.querySelectorAll('.btn-preview-legal-doc').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const dKey = e.currentTarget.getAttribute('data-doc-key');
+                    if (window.LegalDocsHelper) {
+                        window.LegalDocsHelper.openLegalDocPreviewModal(dKey, client, 'es');
+                    }
+                });
+            });
+
+            detailsBody.querySelectorAll('.btn-dl-legal-doc').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const dKey = e.currentTarget.getAttribute('data-doc-key');
+                    if (window.LegalDocsHelper) {
+                        window.LegalDocsHelper.downloadSingleDocPdf(dKey, client, 'es');
+                    }
+                });
+            });
+
+            const btnDlConsolidated = detailsBody.querySelector('#btn-dl-consolidated-history');
+            if (btnDlConsolidated) {
+                btnDlConsolidated.addEventListener('click', () => {
+                    if (window.LegalDocsHelper && typeof window.LegalDocsHelper.downloadConsolidatedPdf === 'function') {
+                        window.LegalDocsHelper.downloadConsolidatedPdf(client, 'es');
+                    }
+                });
+            }
+
+            // Bind buttons for Payment Support Viewer
+            detailsBody.querySelectorAll('.btn-view-jump-support').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const jIdx = parseInt(e.currentTarget.getAttribute('data-jidx'), 10);
+                    const jumpPax = client.jumps[jIdx];
+                    const targetPax = (jumpPax && (jumpPax.paymentSupport || jumpPax.soportePago)) ? jumpPax : { ...client, paymentSupport: client.paymentSupport };
+                    if (window.viewPaymentSupportModal) window.viewPaymentSupportModal(targetPax);
+                });
+            });
+
+            const btnOpenFullSupport = detailsBody.querySelector('#btn-open-full-payment-support');
+            if (btnOpenFullSupport) {
+                btnOpenFullSupport.addEventListener('click', () => {
+                    if (window.viewPaymentSupportModal) window.viewPaymentSupportModal({ ...client, paymentSupport: client.paymentSupport });
+                });
+            }
+            const imgThumbSupport = detailsBody.querySelector('#img-thumb-payment-support');
+            if (imgThumbSupport) {
+                imgThumbSupport.addEventListener('click', () => {
+                    if (window.viewPaymentSupportModal) window.viewPaymentSupportModal({ ...client, paymentSupport: client.paymentSupport });
+                });
+            }
 
             modalDetails.style.display = 'flex';
             void modalDetails.offsetWidth;
@@ -320,7 +464,6 @@ window.Modules.historySearch = {
             
             // Re-bind PDF button
             const pdfBtn = document.getElementById('btn-download-pdf');
-            // Remove previous listeners by cloning
             const newPdfBtn = pdfBtn.cloneNode(true);
             pdfBtn.parentNode.replaceChild(newPdfBtn, pdfBtn);
             
@@ -408,7 +551,7 @@ window.Modules.historySearch = {
                 y += 12;
             });
             
-                        // Generate jsPDF ArrayBuffer
+            // Generate jsPDF ArrayBuffer
             const historyPdfArrayBuffer = doc.output('arraybuffer');
             
             try {
@@ -420,73 +563,18 @@ window.Modules.historySearch = {
                 const historyPages = await mergedPdf.copyPages(historyPdf, historyPdf.getPageIndices());
                 historyPages.forEach(p => mergedPdf.addPage(p));
                 
-                // Load and append the 4 legal documents
-                const files = [
-                    '1_bienvenida.pdf',
-                    '2_terminos_condiciones.pdf',
-                    '3_ficha_informacion.pdf',
-                    '4_exoneracion.pdf'
-                ];
-                
-                const startIndex = mergedPdf.getPageCount();
-                
-                for (const file of files) {
-                    try {
-                        const docKey = file.includes('1_bienvenida') ? 'bienvenida' : (file.includes('2_terminos') ? 'terminos' : (file.includes('3_ficha') ? 'ficha' : 'exoneracion'));
-                        let docUrl = 'assets/docs/' + file;
-                        const fullKey = docKey + '_es';
-                        const docArr = window.AppData?.legalDocs?.[fullKey];
-                        if (docArr && docArr.length > 0 && docArr[docArr.length - 1].dataUrl) {
-                            docUrl = docArr[docArr.length - 1].dataUrl;
+                // Append all 4 legal documents with the passenger's signature inserted in EVERY document (Req #3)
+                if (window.LegalDocsHelper) {
+                    const docKeys = ['bienvenida', 'terminos', 'ficha', 'exoneracion'];
+                    for (const docKey of docKeys) {
+                        try {
+                            const arrayBuffer = await window.LegalDocsHelper.generateSingleDocArrayBuffer(docKey, client, 'es');
+                            const pdfDoc = await PDFDocument.load(arrayBuffer);
+                            const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                            copiedPages.forEach(page => mergedPdf.addPage(page));
+                        } catch (err) {
+                            console.error("Error appending signed legal doc:", docKey, err);
                         }
-                        
-                        const res = await fetch(docUrl);
-                        if (!res.ok) continue;
-                        const arrayBuffer = await res.arrayBuffer();
-                        const pdfDoc = await PDFDocument.load(arrayBuffer);
-                        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-                        copiedPages.forEach(page => mergedPdf.addPage(page));
-                    } catch (err) {
-                        console.error("Error appending doc", err);
-                    }
-                }
-                
-                const endIndex = mergedPdf.getPageCount();
-                if (endIndex > startIndex) {
-                    const lastPage = mergedPdf.getPage(endIndex - 1);
-                    const { width, height } = lastPage.getSize();
-                    
-                    if (client.signature) {
-                        try {
-                            const pngImageBytes = await fetch(client.signature).then(res => res.arrayBuffer());
-                            const pngImage = await mergedPdf.embedPng(pngImageBytes);
-                            const sigDims = pngImage.scale(0.5);
-                            lastPage.drawImage(pngImage, {
-                                x: width / 2 - sigDims.width / 2,
-                                y: 50,
-                                width: sigDims.width,
-                                height: sigDims.height,
-                            });
-                        } catch (e) { console.error("Error drawing signature", e); }
-                    }
-                    
-                    if (client.selfie) {
-                        try {
-                            const selfieBytes = await fetch(client.selfie).then(res => res.arrayBuffer());
-                            let selfieImg;
-                            if (client.selfie.includes('image/jpeg') || client.selfie.includes('image/jpg')) {
-                                selfieImg = await mergedPdf.embedJpg(selfieBytes);
-                            } else {
-                                selfieImg = await mergedPdf.embedPng(selfieBytes);
-                            }
-                            const selfieDims = selfieImg.scaleToFit(100, 100);
-                            lastPage.drawImage(selfieImg, {
-                                x: 50,
-                                y: 50,
-                                width: selfieDims.width,
-                                height: selfieDims.height,
-                            });
-                        } catch (e) { console.error("Error drawing selfie", e); }
                     }
                 }
                 

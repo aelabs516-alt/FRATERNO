@@ -44,15 +44,24 @@ window.Modules.settings = {
             </div>
 
             <div id="content-precios" class="card settings-content" style="display: block;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
                     <h3>Maestro de Valores</h3>
-                    <button class="btn btn-primary" id="btn-create-valor"><i class="fas fa-plus"></i> Crear Nuevo Ítem</button>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="btn btn-outline" id="btn-toggle-tariff-history"><i class="fas fa-history"></i> Historial de Tarifas</button>
+                        <button class="btn btn-primary" id="btn-create-valor"><i class="fas fa-plus"></i> Crear Nuevo Ítem</button>
+                    </div>
+                </div>
+                <div id="maestro-security-banner" style="margin-top: 1rem; padding: 0.9rem 1.1rem; border-radius: 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); display: flex; align-items: flex-start; gap: 0.85rem;">
+                    <!-- Rendered dynamically by renderValoresSecurityUI -->
+                </div>
+                <div id="maestro-history-panel" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 10px; background: var(--bg-surface-hover); border: 1px solid var(--border-color);">
+                    <!-- Rendered dynamically by renderValoresSecurityUI -->
                 </div>
                 <div id="valores-grid" style="margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
                     <!-- Rendered dynamically -->
                 </div>
                 <div style="margin-top: 1.5rem; text-align: right;">
-                    <button class="btn btn-primary" id="btn-save-prices"><i class="fas fa-save"></i> Guardar Valores</button>
+                    <button class="btn btn-primary" id="btn-save-prices"><i class="fas fa-shield-alt"></i> Guardar Valores (Solo Futuros)</button>
                 </div>
             </div>
 
@@ -236,9 +245,15 @@ window.Modules.settings = {
                     </div>
                 </div>
                 
-                <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                <div style="margin-top: 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
                     <button class="btn btn-primary" id="btn-save-backup"><i class="fas fa-save"></i> Guardar Configuración</button>
                     <button class="btn" id="btn-force-backup" style="background: var(--brand-success); color: white;"><i class="fas fa-cloud-download-alt"></i> Forzar Backup Ahora</button>
+                </div>
+
+                <div style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px dashed var(--border-color);">
+                    <h4 style="color: var(--brand-danger); margin-bottom: 0.5rem;"><i class="fas fa-exclamation-triangle"></i> Zona de Reinicio (Entorno de Pruebas)</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">Elimina todos los pasajeros, reservas, aeronaves, empleados, inventario, caja, facturas y ventas de prueba, dejando el sistema completamente en blanco (solo se conserva el usuario <strong>admin01</strong>).</p>
+                    <button class="btn btn-danger" id="btn-reset-system-blank"><i class="fas fa-trash-restore"></i> Restablecer Sistema en Blanco</button>
                 </div>
             </div>
 
@@ -391,13 +406,14 @@ window.Modules.settings = {
         // Global CRUD Action Delegation (Edit/Delete/View)
         // =====================================
         document.querySelectorAll('.crud-table').forEach(table => {
-            table.addEventListener('click', (e) => {
+            table.addEventListener('click', async (e) => {
                 const btnDelete = e.target.closest('.btn-delete');
                 const btnEdit = e.target.closest('.btn-edit');
                 const btnViewServices = e.target.closest('.btn-view-services');
                 
                 if (btnDelete) {
-                    if(confirm('¿Estás seguro de que deseas eliminar este registro?')) {
+                    const ok = window.showConfirm ? await window.showConfirm('¿Estás seguro de que deseas eliminar este registro?', { title: 'Eliminar Registro', type: 'danger' }) : confirm('¿Estás seguro de que deseas eliminar este registro?');
+                    if (ok) {
                         const tr = btnDelete.closest('tr');
                         const tbody = tr.closest('tbody');
                         if (tbody && tbody.id === 'table-usr') {
@@ -482,10 +498,10 @@ window.Modules.settings = {
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
                                     <div style="width: 50px; height: 50px; background: linear-gradient(135deg, var(--brand-blue), var(--brand-blue-light)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">
-                                        ${name.charAt(0)}${lastname ? lastname.charAt(0) : ''}
+                                        ${escapeHTML(name.charAt(0))}${lastname ? escapeHTML(lastname.charAt(0)) : ''}
                                     </div>
                                     <div>
-                                        <h4 style="margin: 0; font-size: 1.1rem;">${name} ${lastname}</h4>
+                                        <h4 style="margin: 0; font-size: 1.1rem;">${escapeHTML(name)} ${escapeHTML(lastname)}</h4>
                                         <span style="font-size: 0.9rem; color: var(--text-secondary);">Instructor Activo</span>
                                     </div>
                                 </div>
@@ -529,28 +545,194 @@ window.Modules.settings = {
         });
 
         // =====================================
-        // Save Prices Logic
+        // Save Prices Logic (Protected by TariffGuard)
         // =====================================
-        document.getElementById('btn-save-prices').addEventListener('click', () => {
-            // update global prices array
+        function renderValoresSecurityUI() {
+            if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
+            const ver = window.AppData?.maestroValoresVersion || 1;
+            const history = window.AppData?.maestroValoresHistory || [];
+            const latest = history[history.length - 1];
+            const totalPax = (window.AppData?.passengers || []).length;
+            const totalPackers = (window.AppData?.packerBilling || []).length;
+            const totalFacturas = (window.AppData?.facturas || []).length;
+
+            const lastUpdateText = (latest && latest.effectiveFrom && latest.effectiveFrom !== '1970-01-01T00:00:00.000Z')
+                ? `${new Date(latest.effectiveFrom).toLocaleString('es-CO')} por ${escapeHTML(latest.updatedBy || 'Administrador')}`
+                : 'Tarifa inicial del sistema';
+
+            const banner = document.getElementById('maestro-security-banner');
+            if (banner) {
+                banner.innerHTML = `
+                    <i class="fas fa-shield-alt" style="font-size: 1.4rem; color: #10b981; margin-top: 2px;"></i>
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                            <strong style="color: var(--text-primary);">Protección Histórica de Tarifas Activa</strong>
+                            <span id="maestro-version-badge" style="background: rgba(16, 185, 129, 0.18); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Tarifa Vigente v${ver}</span>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Última vigencia: ${lastUpdateText}</span>
+                        </div>
+                        <p style="margin: 0.35rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45;">
+                            Al actualizar cualquier valor, <strong>todos los registros anteriores (${totalPax} pasajero(s), ${totalPackers} empaque(s), ${totalFacturas} factura(s))</strong> permanecen inmutables con la tarifa vigente al momento de su registro. Los nuevos valores aplican <strong>exclusivamente a datos futuros</strong>.
+                        </p>
+                    </div>
+                `;
+            }
+
+            const panel = document.getElementById('maestro-history-panel');
+            if (panel) {
+                if (history.length === 0) {
+                    panel.innerHTML = `<p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">Sin historial de cambios registrado.</p>`;
+                } else {
+                    const fmtCOP = (n) => '$' + (parseInt(n, 10) || 0).toLocaleString('es-CO');
+                    const rows = [...history].reverse().map(h => {
+                        const dateStr = (h.effectiveFrom && h.effectiveFrom !== '1970-01-01T00:00:00.000Z')
+                            ? new Date(h.effectiveFrom).toLocaleString('es-CO')
+                            : 'Inicio del sistema';
+                        const changesHtml = (h.changes && h.changes.length > 0)
+                            ? h.changes.map(c => {
+                                const parts = [];
+                                if (c.isNew) {
+                                    parts.push(`Nuevo ítem (Venta: ${fmtCOP(c.newPrice)}, Staff: ${fmtCOP(c.newComision)})`);
+                                } else {
+                                    if (c.oldPrice !== c.newPrice) parts.push(`Venta: ${fmtCOP(c.oldPrice)} → ${fmtCOP(c.newPrice)}`);
+                                    if (c.oldComision !== c.newComision) parts.push(`Staff: ${fmtCOP(c.oldComision)} → ${fmtCOP(c.newComision)}`);
+                                }
+                                return `<div style="font-size: 0.8rem;">• <strong>${escapeHTML(c.name)}</strong>: ${escapeHTML(parts.join(' | '))}</div>`;
+                            }).join('')
+                            : '<span style="color: var(--text-secondary); font-size: 0.8rem;">Tarifa base inicial</span>';
+                        const prot = h.protectedCounts || { passengers: 0, packers: 0, facturas: 0 };
+                        return `
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 0.6rem; font-weight: 700;">v${h.version}</td>
+                                <td style="padding: 0.6rem; font-size: 0.85rem;">${escapeHTML(dateStr)}</td>
+                                <td style="padding: 0.6rem; font-size: 0.85rem;">${escapeHTML(h.updatedBy || 'Administrador')}</td>
+                                <td style="padding: 0.6rem;">${changesHtml}</td>
+                                <td style="padding: 0.6rem; font-size: 0.8rem; color: var(--text-secondary);">${prot.passengers || 0} pax / ${prot.packers || 0} emp. / ${prot.facturas || 0} fac.</td>
+                            </tr>
+                        `;
+                    }).join('');
+                    panel.innerHTML = `
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.95rem;"><i class="fas fa-history"></i> Auditoría de Versiones del Maestro de Valores</h4>
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border-color);">
+                                        <th style="padding: 0.5rem;">Versión</th>
+                                        <th style="padding: 0.5rem;">Vigencia Desde</th>
+                                        <th style="padding: 0.5rem;">Usuario</th>
+                                        <th style="padding: 0.5rem;">Cambios Aplicados (Solo Futuros)</th>
+                                        <th style="padding: 0.5rem;">Registros Protegidos</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        const btnToggleTariffHistory = document.getElementById('btn-toggle-tariff-history');
+        if (btnToggleTariffHistory) {
+            btnToggleTariffHistory.addEventListener('click', () => {
+                const panel = document.getElementById('maestro-history-panel');
+                if (!panel) return;
+                const isOpen = panel.style.display !== 'none';
+                panel.style.display = isOpen ? 'none' : 'block';
+                if (!isOpen) renderValoresSecurityUI();
+            });
+        }
+
+        document.getElementById('btn-save-prices').addEventListener('click', async () => {
+            if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
+
             const priceInputs = document.querySelectorAll('#valores-grid .price-input');
             const comisionInputs = document.querySelectorAll('#valores-grid .comision-input');
-            window.AppData.maestroValores.forEach(item => {
+            const proposedItems = (window.AppData.maestroValores || []).map(item => {
                 const pInput = Array.from(priceInputs).find(i => i.dataset.name === item.name);
-                if (pInput) item.price = pInput.value.replace(/\./g, '');
-                
                 const cInput = Array.from(comisionInputs).find(i => i.dataset.name === item.name);
-                if (cInput) item.comision = cInput.value.replace(/\./g, '');
+                return {
+                    name: item.name,
+                    price: pInput ? pInput.value.replace(/\D/g, '') : String(item.price ?? '0'),
+                    comision: cInput ? cInput.value.replace(/\D/g, '') : String(item.comision ?? '0')
+                };
             });
+
+            if (window.TariffGuard) {
+                const diff = window.TariffGuard.computeDiff(window.AppData.maestroValores, proposedItems);
+                if (diff.length === 0) {
+                    if (window.showAlert) {
+                        window.showAlert('No se detectaron cambios en los valores del Maestro.', { type: 'info', title: 'Sin Cambios' });
+                    } else {
+                        alert('No se detectaron cambios en los valores del Maestro.');
+                    }
+                    return;
+                }
+
+                const curVer = window.AppData.maestroValoresVersion || 1;
+                const nextVer = curVer + 1;
+                const paxCount = (window.AppData.passengers || []).length;
+                const packerCount = (window.AppData.packerBilling || []).length;
+                const facCount = (window.AppData.facturas || []).length;
+                const previewLines = diff.slice(0, 5).map(c => {
+                    const fmt = (n) => '$' + (parseInt(n, 10) || 0).toLocaleString('es-CO');
+                    const parts = [];
+                    if (c.oldPrice !== c.newPrice) parts.push(`Venta ${fmt(c.oldPrice)} → ${fmt(c.newPrice)}`);
+                    if (c.oldComision !== c.newComision) parts.push(`Staff ${fmt(c.oldComision)} → ${fmt(c.newComision)}`);
+                    return `• ${c.name}: ${parts.join(', ')}`;
+                }).join('\n');
+                const moreNote = diff.length > 5 ? `\n... y ${diff.length - 5} ítem(s) más.` : '';
+
+                const confirmMsg =
+                    `Se actualizarán ${diff.length} ítem(s) hacia la Tarifa v${nextVer}:\n${previewLines}${moreNote}\n\n` +
+                    `SEGURIDAD HISTÓRICA:\n` +
+                    `• ${paxCount} pasajero(s), ${packerCount} registro(s) de empaque y ${facCount} factura(s) anteriores quedarán bloqueados con la Tarifa v${curVer} sin ninguna modificación.\n` +
+                    `• Los nuevos valores aplicarán únicamente para registros ingresados a partir de este momento.\n\n` +
+                    `¿Desea aplicar la actualización de forma segura?`;
+
+                const confirmed = window.showConfirm
+                    ? await window.showConfirm(confirmMsg, { title: 'Confirmar Actualización Segura de Tarifas', type: 'warning' })
+                    : confirm(confirmMsg);
+
+                if (!confirmed) return;
+
+                const result = window.TariffGuard.applyMaestroUpdate(proposedItems);
+                renderValores();
+
+                const successMsg = `Tarifa v${result.newVersion} guardada exitosamente. Toda la información y facturación anterior permanece intacta bajo las tarifas históricas; los nuevos precios solo aplicarán a registros futuros.`;
+                if (window.showAlert) {
+                    window.showAlert(successMsg, { type: 'success', title: `Maestro Actualizado (v${result.newVersion})` });
+                } else {
+                    alert(successMsg);
+                }
+                return;
+            }
+
+            // Fallback si TariffGuard no está cargado
+            window.AppData.maestroValores = proposedItems;
             if (window.saveAppData) window.saveAppData();
             alert('Precios Base Globales guardados con éxito.');
         });
         
-        document.getElementById('btn-create-valor').addEventListener('click', () => {
-            const newName = prompt('Nombre del nuevo ítem:');
+        document.getElementById('btn-create-valor').addEventListener('click', async () => {
+            const newName = window.showPrompt
+                ? await window.showPrompt('Ingrese el nombre del nuevo ítem para el Maestro de Valores:', { title: 'Crear Nuevo Ítem', placeholder: 'Ej: Salto Especial...' })
+                : prompt('Nombre del nuevo ítem:');
             if (newName && newName.trim()) {
-                window.AppData.maestroValores.push({ name: newName.trim(), price: '0', comision: '0' });
-                if (window.saveAppData) window.saveAppData();
+                const cleanName = newName.trim();
+                const exists = (window.AppData.maestroValores || []).some(i => i.name.toLowerCase() === cleanName.toLowerCase());
+                if (exists) {
+                    if (window.showAlert) window.showAlert(`El ítem "${cleanName}" ya existe en el Maestro de Valores.`, { type: 'warning', title: 'Ítem Duplicado' });
+                    else alert(`El ítem "${cleanName}" ya existe.`);
+                    return;
+                }
+                if (window.TariffGuard) {
+                    const updated = window.TariffGuard.cloneMaestro(window.AppData.maestroValores);
+                    updated.push({ name: cleanName, price: '0', comision: '0' });
+                    window.TariffGuard.applyMaestroUpdate(updated);
+                } else {
+                    window.AppData.maestroValores.push({ name: cleanName, price: '0', comision: '0' });
+                    if (window.saveAppData) window.saveAppData();
+                }
                 renderValores();
             }
         });
@@ -616,6 +798,9 @@ window.Modules.settings = {
         }
         
         function renderValores() {
+            if (window.TariffGuard) {
+                window.TariffGuard.ensureVersionMetadata();
+            }
             if (!window.AppData.maestroValores) {
                 window.AppData.maestroValores = [
                     {name: 'Valor KG Extra', price: '5.000', comision: '0'}, {name: 'Salto Tandem', price: '1.500.000', comision: '0'},
@@ -655,6 +840,7 @@ window.Modules.settings = {
             
             // Sort alphabetically
             window.AppData.maestroValores.sort((a, b) => a.name.localeCompare(b.name));
+            renderValoresSecurityUI();
             
             if (gridContainer) {
                 let html = '';
@@ -732,8 +918,8 @@ window.Modules.settings = {
                 let timeStr = `${hour.toString().padStart(2, '0')}:${min} ${ampm}`;
 
                 tr.innerHTML = `
-                    <td style="padding: 1rem; font-weight: 600;">${timeStr}</td>
-                    <td style="padding: 1rem;">${cap} cupos</td>
+                    <td style="padding: 1rem; font-weight: 600;">${escapeHTML(timeStr)}</td>
+                    <td style="padding: 1rem;">${escapeHTML(cap)} cupos</td>
                     <td style="padding: 1rem; text-align: center;">
                         <button class="btn btn-edit" style="color: var(--brand-action); padding: 0.25rem;"><i class="fas fa-edit"></i></button>
                         <button class="btn btn-delete" style="color: var(--brand-danger); padding: 0.25rem;"><i class="fas fa-trash"></i></button>
@@ -831,6 +1017,33 @@ window.Modules.settings = {
             alert('Generando copia de seguridad y enviando al correo configurado...');
         });
 
+        const btnResetSystem = document.getElementById('btn-reset-system-blank');
+        if (btnResetSystem) {
+            btnResetSystem.addEventListener('click', async () => {
+                const confirmed = window.showConfirm
+                    ? await window.showConfirm('¿Estás seguro de eliminar TODA la información del sistema (pasajeros, reservas, RRHH, flota, inventario, facturas y caja)? Esta acción no se puede deshacer.', {
+                        title: 'Restablecer Sistema en Blanco',
+                        type: 'danger',
+                        confirmText: 'Sí, Eliminar Todo',
+                        cancelText: 'Cancelar'
+                    })
+                    : confirm('¿Estás seguro de eliminar TODA la información del sistema?');
+                if (!confirmed) return;
+
+                if (window.resetSystemToBlank) {
+                    await window.resetSystemToBlank();
+                    if (window.showAlert) {
+                        await window.showAlert('El sistema ha sido restablecido completamente en blanco. Se conservaron únicamente las credenciales de Administrador (admin01 / admin).', {
+                            title: 'Sistema en Blanco',
+                            type: 'success'
+                        });
+                    }
+                    window.location.hash = '#/';
+                    window.location.reload();
+                }
+            });
+        }
+
         // =====================================
 
 
@@ -915,8 +1128,137 @@ window.Modules.settings = {
         }
 
         // =====================================
-        // Aeronaves Logic
+        // Modal Migración de Vuelos AOG (Req #8)
         // =====================================
+        function openAogMigrationModal(sourcePlane, targetNewState) {
+            return new Promise((resolve) => {
+                const today = new Date().toLocaleDateString('en-CA');
+                const scheduledFlights = (window.AppData.asignacionFlota || []).filter(f => f.id_aeronave === sourcePlane.id && f.fecha >= today);
+                const otherOperativePlanes = (window.AppData.aeronaves || []).filter(a => a.id !== sourcePlane.id && a.estado === 'Operativa');
+
+                const optionsHtml = otherOperativePlanes.length > 0
+                    ? otherOperativePlanes.map(op => `<option value="${escapeHTML(op.id)}">${escapeHTML(op.matricula)} (${escapeHTML(op.modelo)}) - Cap: FJ ${escapeHTML(op.capFun)} / T ${escapeHTML(op.capTan)}</option>`).join('')
+                    : `<option value="">-- No hay otras aeronaves en estado Operativa --</option>`;
+
+                const overlay = document.createElement('div');
+                overlay.className = 'fraterno-modal-overlay';
+                overlay.style.display = 'flex';
+
+                overlay.innerHTML = `
+                    <div class="fraterno-modal-card" style="width: 540px; max-width: 94%; border-top-color: var(--brand-warning) !important;">
+                        <button id="aog-modal-close-top" class="btn" style="position: absolute; top: 1.25rem; right: 1.25rem; color: var(--text-secondary); font-size: 1.25rem;"><i class="fas fa-times"></i></button>
+                        <h3><i class="fas fa-plane-slash" style="color: var(--brand-warning);"></i> Cambio de Estado a ${escapeHTML(targetNewState)}</h3>
+                        
+                        <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem;">
+                            <div style="font-size: 0.95rem; color: var(--text-primary); margin-bottom: 0.4rem;">
+                                Aeronave seleccionada: <strong>${escapeHTML(sourcePlane.matricula)} (${escapeHTML(sourcePlane.modelo)})</strong>
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                Vuelos programados a partir de hoy: <strong style="color: var(--brand-warning);">${scheduledFlights.length} vuelo(s)</strong>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.65rem;">
+                                ¿Desea migrar los vuelos programados de la aeronave ${escapeHTML(sourcePlane.matricula)} a otra aeronave operativa?
+                            </label>
+                            <div style="display: flex; flex-direction: column; gap: 0.6rem; background: var(--bg-surface-hover); padding: 0.9rem 1rem; border-radius: 10px; border: 1px solid var(--border-color);">
+                                <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 600; color: var(--text-primary); margin: 0;">
+                                    <input type="radio" name="aog-migrate-opt" value="yes" ${otherOperativePlanes.length > 0 ? 'checked' : ''} style="accent-color: var(--brand-action); width: 18px; height: 18px;">
+                                    <span>Sí, migrar los vuelos programados a otra aeronave</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 500; color: var(--text-secondary); margin: 0;">
+                                    <input type="radio" name="aog-migrate-opt" value="no" ${otherOperativePlanes.length === 0 ? 'checked' : ''} style="accent-color: var(--brand-danger); width: 18px; height: 18px;">
+                                    <span>No migrar (eliminar vuelos programados de esta aeronave)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="aog-target-plane-container" style="margin-bottom: 1.5rem; display: ${otherOperativePlanes.length > 0 ? 'block' : 'none'};">
+                            <label style="font-weight: 700; color: var(--text-primary);">Indicar a cuál aeronave migrar los vuelos:</label>
+                            <select id="aog-target-plane-select" class="form-control" style="font-weight: 600;">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            <button type="button" class="btn btn-outline" id="aog-btn-cancel">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="aog-btn-confirm" style="background: var(--brand-warning); color: #fff; border: none;">
+                                <i class="fas fa-exchange-alt"></i> Confirmar y Pasar a ${escapeHTML(targetNewState)}
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(overlay);
+                const radios = overlay.querySelectorAll('input[name="aog-migrate-opt"]');
+                const targetContainer = overlay.querySelector('#aog-target-plane-container');
+                const targetSelect = overlay.querySelector('#aog-target-plane-select');
+
+                radios.forEach(r => {
+                    r.addEventListener('change', () => {
+                        const sel = overlay.querySelector('input[name="aog-migrate-opt"]:checked')?.value;
+                        targetContainer.style.display = (sel === 'yes') ? 'block' : 'none';
+                    });
+                });
+
+                function cancel() {
+                    overlay.remove();
+                    resolve({ confirmed: false });
+                }
+
+                overlay.querySelector('#aog-modal-close-top').addEventListener('click', cancel);
+                overlay.querySelector('#aog-btn-cancel').addEventListener('click', cancel);
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) cancel(); });
+
+                overlay.querySelector('#aog-btn-confirm').addEventListener('click', () => {
+                    const choice = overlay.querySelector('input[name="aog-migrate-opt"]:checked')?.value;
+                    if (choice === 'yes') {
+                        const targetPlaneId = targetSelect.value;
+                        if (!targetPlaneId) {
+                            alert('Por favor selecciona una aeronave operativa destino para migrar los vuelos, o elige la opción "No migrar".');
+                            return;
+                        }
+                        const destPlane = (window.AppData.aeronaves || []).find(a => a.id === targetPlaneId);
+                        if (!destPlane) {
+                            alert('Aeronave destino no encontrada.');
+                            return;
+                        }
+
+                        // Migrate scheduled flights in asignacionFlota
+                        let migratedCount = 0;
+                        (window.AppData.asignacionFlota || []).forEach(f => {
+                            if (f.id_aeronave === sourcePlane.id && f.fecha >= today) {
+                                f.id_aeronave = destPlane.id;
+                                migratedCount++;
+                            }
+                        });
+
+                        // Also migrate passengers assigned to sourcePlane.matricula on future/today active flights
+                        (window.AppData.passengers || []).forEach(p => {
+                            if (p.aeronave === sourcePlane.matricula && p.date >= today && p.flightStatus !== 'Completado' && p.flightStatus !== 'Aterrizó') {
+                                p.aeronave = destPlane.matricula;
+                            }
+                        });
+
+                        overlay.remove();
+                        alert(`Estado cambiado a ${targetNewState}.\nSe migraron exitosamente ${migratedCount} vuelo(s) programado(s) a la aeronave ${destPlane.matricula}.`);
+                        resolve({ confirmed: true, migrated: true, targetPlane: destPlane });
+                    } else {
+                        // Do not migrate: remove scheduled flights from today onwards
+                        window.AppData.asignacionFlota = (window.AppData.asignacionFlota || []).filter(f => !(f.id_aeronave === sourcePlane.id && f.fecha >= today));
+                        (window.AppData.passengers || []).forEach(p => {
+                            if (p.aeronave === sourcePlane.matricula && p.date >= today && p.flightStatus !== 'Completado' && p.flightStatus !== 'Aterrizó') {
+                                p.aeronave = 'Sin asignar';
+                                p.vueloNum = '';
+                            }
+                        });
+                        overlay.remove();
+                        resolve({ confirmed: true, migrated: false });
+                    }
+                });
+            });
+        }
         
         window.AppData.aeronaves = window.AppData.aeronaves || [];
         const tablePlane = document.getElementById('table-plane');
@@ -959,9 +1301,10 @@ window.Modules.settings = {
 
 
             document.querySelectorAll('.btn-delete-plane').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const id = e.currentTarget.getAttribute('data-id');
-                    if (confirm('¿Seguro que deseas eliminar esta aeronave?')) {
+                    const ok = window.showConfirm ? await window.showConfirm('¿Seguro que deseas eliminar esta aeronave?', { title: 'Eliminar Aeronave', type: 'danger' }) : confirm('¿Seguro que deseas eliminar esta aeronave?');
+                    if (ok) {
                         window.AppData.aeronaves = window.AppData.aeronaves.filter(a => a.id !== id);
                         if (window.saveAppData) window.saveAppData();
                         renderAeronaves();
@@ -991,21 +1334,16 @@ window.Modules.settings = {
             });
 
             document.querySelectorAll('.plane-inline-status').forEach(select => {
-                select.addEventListener('change', (e) => {
+                select.addEventListener('change', async (e) => {
                     const id = e.target.getAttribute('data-id');
                     const newState = e.target.value;
                     const plane = window.AppData.aeronaves.find(a => a.id === id);
                     if (plane && plane.estado !== newState) {
                         if (newState === 'AOG' || newState === 'No operativa') {
-                            const today = new Date().toLocaleDateString('en-CA');
-                            const flightsToDelete = (window.AppData.asignacionFlota || []).filter(f => f.id_aeronave === plane.id && f.fecha >= today);
-                            if (flightsToDelete.length > 0) {
-                                if (confirm(`Atención: Hay ${flightsToDelete.length} vuelos programados a partir de hoy para esta aeronave. Si continúas, se eliminarán. ¿Deseas continuar y cambiar el estado a ${newState}?`)) {
-                                    window.AppData.asignacionFlota = (window.AppData.asignacionFlota || []).filter(f => !(f.id_aeronave === plane.id && f.fecha >= today));
-                                } else {
-                                    e.target.value = plane.estado; // Revertir visualmente
-                                    return; // Cancelar cambio
-                                }
+                            const res = await openAogMigrationModal(plane, newState);
+                            if (!res.confirmed) {
+                                e.target.value = plane.estado; // Revertir visualmente
+                                return;
                             }
                         }
                         plane.estado = newState;
@@ -1018,7 +1356,7 @@ window.Modules.settings = {
 
         renderAeronaves();
 
-        btnCreatePlane.addEventListener('click', () => {
+        btnCreatePlane.addEventListener('click', async () => {
             const model = document.getElementById('plane-model').value.trim();
             const reg = document.getElementById('plane-reg').value.trim();
             const capFun = parseInt(document.getElementById('plane-cap-fun').value);
@@ -1035,14 +1373,9 @@ window.Modules.settings = {
                 if(plane) {
                     const statusChanged = plane.estado !== status;
                     if (statusChanged && (status === 'AOG' || status === 'No operativa')) {
-                        const today = new Date().toLocaleDateString('en-CA');
-                        const flightsToDelete = (window.AppData.asignacionFlota || []).filter(f => f.id_aeronave === plane.id && f.fecha >= today);
-                        if (flightsToDelete.length > 0) {
-                            if (confirm(`Atención: Hay ${flightsToDelete.length} vuelos programados a partir de hoy para esta aeronave. Si continúas, se eliminarán. ¿Deseas continuar y cambiar el estado a ${status}?`)) {
-                                window.AppData.asignacionFlota = (window.AppData.asignacionFlota || []).filter(f => !(f.id_aeronave === plane.id && f.fecha >= today));
-                            } else {
-                                return; // Cancelar guardado
-                            }
+                        const res = await openAogMigrationModal(plane, status);
+                        if (!res.confirmed) {
+                            return; // Cancelar guardado
                         }
                     }
                     
@@ -1181,19 +1514,20 @@ window.Modules.settings = {
             grid.innerHTML = products.map(p => `
                 <div class="card" style="display: flex; flex-direction: column; gap: 0.5rem; border: 1px solid var(--border-color);">
                     <div style="height: 120px; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px;">
-                        ${p.image ? `<img src="${p.image}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image" style="font-size: 2rem; color: #ccc;"></i>'}
+                        ${p.image ? `<img src="${escapeHTML(p.image)}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="fas fa-image" style="font-size: 2rem; color: #ccc;"></i>'}
                     </div>
-                    <div style="font-weight: bold; font-size: 1.1rem; color: var(--text-primary); margin-top: 0.5rem;">${p.name}</div>
-                    ${p.barcode ? `<div style="font-size: 0.85rem; color: var(--text-secondary);"><i class="fas fa-barcode"></i> ${p.barcode}</div>` : ''}
+                    <div style="font-weight: bold; font-size: 1.1rem; color: var(--text-primary); margin-top: 0.5rem;">${escapeHTML(p.name)}</div>
+                    ${p.barcode ? `<div style="font-size: 0.85rem; color: var(--text-secondary);"><i class="fas fa-barcode"></i> ${escapeHTML(p.barcode)}</div>` : ''}
                     <div style="color: var(--brand-success); font-size: 1.2rem; margin-bottom: 0.5rem; font-weight: 600;">${fmt(p.price)}</div>
-                    <button class="btn btn-sm btn-delete-store-product" data-id="${p.id}" style="background: var(--brand-danger); color: white;"><i class="fas fa-trash"></i> Eliminar</button>
+                    <button class="btn btn-sm btn-delete-store-product" data-id="${escapeHTML(p.id)}" style="background: var(--brand-danger); color: white;"><i class="fas fa-trash"></i> Eliminar</button>
                 </div>
             `).join('');
             
             document.querySelectorAll('.btn-delete-store-product').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    if (confirm('¿Seguro que deseas eliminar este producto?')) {
-                        const id = e.currentTarget.getAttribute('data-id');
+                btn.addEventListener('click', async (e) => {
+                    const id = e.currentTarget.getAttribute('data-id');
+                    const ok = window.showConfirm ? await window.showConfirm('¿Seguro que deseas eliminar este producto?', { title: 'Eliminar Producto', type: 'danger' }) : confirm('¿Seguro que deseas eliminar este producto?');
+                    if (ok) {
                         window.AppData.storeProducts = window.AppData.storeProducts.filter(x => x.id !== id);
                         if (window.saveAppData) window.saveAppData();
                         renderStoreProducts();
@@ -1206,12 +1540,12 @@ window.Modules.settings = {
         if (btnCreateProduct) {
             btnCreateProduct.addEventListener('click', () => {
                 const modalHtml = `
-                <div id="storeProductModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.2s;">
-                    <div style="background: var(--bg-card, #ffffff); padding: 2rem; border-radius: 12px; width: 450px; max-width: 90%; box-shadow: 0 20px 40px rgba(0,0,0,0.3); color: var(--text-primary);">
-                        <h3 style="margin-top: 0; font-size: 1.25rem;"><i class="fas fa-box-open" style="color: #8b5cf6; margin-right: 0.5rem;"></i> Crear Producto Tienda</h3>
+                <div id="storeProductModal" class="fraterno-modal-overlay" style="display: flex;">
+                    <div class="fraterno-modal-card" style="width: 460px; max-width: 92%;">
+                        <h3><i class="fas fa-box-open" style="color: var(--brand-action);"></i> Crear Producto Tienda</h3>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Nombre del Producto <span style="color: #ef4444;">*</span></label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Nombre del Producto <span style="color: var(--brand-danger);">*</span></label>
                             <input type="text" id="sp-name" class="form-control" placeholder="Ej: Camiseta FRATERNO">
                         </div>
                         
@@ -1221,7 +1555,7 @@ window.Modules.settings = {
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Valor / Precio <span style="color: #ef4444;">*</span></label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Valor / Precio <span style="color: var(--brand-danger);">*</span></label>
                             <input type="text" id="sp-price" class="form-control" placeholder="Ej: 50.000">
                         </div>
                         
@@ -1230,9 +1564,9 @@ window.Modules.settings = {
                             <input type="file" id="sp-photo" class="form-control" accept="image/*" style="padding: 0.5rem;">
                         </div>
                         
-                        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-                            <button id="sp-cancel" class="btn btn-secondary">Cancelar</button>
-                            <button id="sp-save" class="btn btn-primary" style="background: #8b5cf6; border-color: #8b5cf6;">Guardar</button>
+                        <div style="display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            <button id="sp-cancel" class="btn btn-outline">Cancelar</button>
+                            <button id="sp-save" class="btn btn-primary"><i class="fas fa-save"></i> Guardar</button>
                         </div>
                     </div>
                 </div>

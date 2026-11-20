@@ -3,11 +3,55 @@
  * Motor de enrutamiento principal (Single Page Application)
  */
 
+window.saveToLocalStorageSafe = function(dataObj) {
+    try {
+        localStorage.setItem('fraterno_app_data', JSON.stringify(dataObj));
+        return true;
+    } catch (storageErr) {
+        console.warn('localStorage quota exceeded, saving compact local cache while keeping full state in memory/PostgreSQL:', storageErr.message);
+        try {
+            // Limpiar copias de respaldo viejas si existen para liberar espacio
+            if (typeof localStorage.length === 'number' && typeof localStorage.key === 'function') {
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.startsWith('fraterno_app_data_corrupted_backup_')) {
+                        keysToRemove.push(k);
+                    }
+                }
+                keysToRemove.forEach(k => localStorage.removeItem(k));
+            }
+            // Crear copia ligera para caché local (sin archivos multimedia pesados que ya viajan a PostgreSQL)
+            const compact = JSON.parse(JSON.stringify(dataObj));
+            if (Array.isArray(compact.passengers)) {
+                compact.passengers = compact.passengers.map(p => {
+                    const cp = { ...p };
+                    delete cp.signedLegalDocs;
+                    delete cp.soportePago;
+                    if (cp.selfie && cp.selfie.length > 40000) cp.selfie = null;
+                    if (cp.paymentSupport && cp.paymentSupport.dataUrl && cp.paymentSupport.dataUrl.length > 80000) {
+                        cp.paymentSupport = { ...cp.paymentSupport, dataUrl: '' };
+                    }
+                    return cp;
+                });
+            }
+            if (compact.legalDocs) {
+                compact.legalDocs = {};
+            }
+            localStorage.setItem('fraterno_app_data', JSON.stringify(compact));
+            return true;
+        } catch (compactErr) {
+            console.warn('Compact localStorage cache also exceeded quota, continuing with PostgreSQL backend only:', compactErr.message);
+            return false;
+        }
+    }
+};
+
 window.saveAppData = function() {
-    localStorage.setItem('fraterno_app_data', JSON.stringify(window.AppData));
-    
-    // Sync with backend API
-    fetch('/api/state', {
+    window.saveToLocalStorageSafe(window.AppData);
+
+    // Sync full state (including selfies, signatures & payment supports up to 50MB) with backend PostgreSQL API
+    return fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(window.AppData)
@@ -26,45 +70,110 @@ document.addEventListener('input', (e) => {
     }
 });
 
+const CLEAN_RESET_VERSION = 'clean_slate_2026_11_19_v1';
+
+window.createBlankAppData = function() {
+    return {
+        _resetVersion: CLEAN_RESET_VERSION,
+        passengers: [],
+        employees: [],
+        instructors: [],
+        pilots: [],
+        timeTracking: [],
+        aeronaves: [],
+        asignacionFlota: [],
+        inventory: [],
+        tandemRigs: [],
+        funRigs: [],
+        pettyCash: [],
+        cajaMenor: [],
+        cashClosings: [],
+        storeProducts: [],
+        storeSales: [],
+        facturas: [],
+        packerBilling: [],
+        ponchera: [],
+        maestroValoresVersion: 1,
+        maestroValoresHistory: [],
+        restriccionSaltos: 'Sin restricción',
+        zonaCerradaMotivo: '',
+        emailAlertsLog: [],
+        legalDocs: {},
+        enabledModules: {},
+        backupConfig: {},
+        noOpRules: { daysOfWeek: ['1', '2'], specificDates: [], exceptions: [] },
+        users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }]
+    };
+};
+
+window.resetSystemToBlank = async function() {
+    const clean = window.createBlankAppData();
+    window.AppData = clean;
+    try {
+        localStorage.removeItem('fraterno_app_data');
+        localStorage.removeItem('factura_seq');
+        localStorage.removeItem('fraterno_wiped_transactional_v2');
+        localStorage.setItem('fraterno_app_data', JSON.stringify(clean));
+        localStorage.setItem('factura_seq', '1');
+    } catch (e) {}
+
+    try {
+        await fetch('/api/reset-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm: true })
+        });
+    } catch (err) {
+        console.warn('Reset API offline, local state wiped:', err);
+    }
+    return clean;
+};
+
 function loadAppData() {
     const saved = localStorage.getItem('fraterno_app_data');
     if (saved) {
-        try { 
+        try {
             const data = JSON.parse(saved);
-            // Ensure noOpRules exists
-            data.noOpRules = data.noOpRules || { daysOfWeek: ['1', '2'], specificDates: [] };
-            data.users = data.users || [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador' }];
-            
-            // Migrate old flight status
-            if (data.passengers) {
-                data.passengers.forEach(p => {
-                    if (p.flightStatus === 'Skydivers On Air') p.flightStatus = 'Paracaidistas en el aire';
-                });
+            // Si los datos en localStorage son anteriores al reinicio limpio, eliminar toda la información de prueba
+            if (data._resetVersion !== CLEAN_RESET_VERSION) {
+                const blank = window.createBlankAppData();
+                localStorage.setItem('fraterno_app_data', JSON.stringify(blank));
+                localStorage.setItem('factura_seq', '1');
+                localStorage.removeItem('fraterno_wiped_transactional_v2');
+                return blank;
             }
 
-            // Init store data if absent
+            // Asegurar estructuras base
+            data.noOpRules = data.noOpRules || { daysOfWeek: ['1', '2'], specificDates: [], exceptions: [] };
+            data.users = (Array.isArray(data.users) && data.users.length > 0)
+                ? data.users
+                : [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }];
+            data.passengers = data.passengers || [];
+            data.employees = data.employees || [];
+            data.aeronaves = data.aeronaves || [];
+            data.asignacionFlota = data.asignacionFlota || [];
             data.storeProducts = data.storeProducts || [];
             data.storeSales = data.storeSales || [];
+            data.ponchera = data.ponchera || [];
+            data.maestroValoresVersion = data.maestroValoresVersion || 1;
+            data.maestroValoresHistory = data.maestroValoresHistory || [];
+            data.restriccionSaltos = data.restriccionSaltos || 'Sin restricción';
+            data.emailAlertsLog = data.emailAlertsLog || [];
 
             return data;
         } catch(e) {
-            console.error("Critical: Failed to parse fraterno_app_data, backing up to prevent data loss.", e);
-            localStorage.setItem('fraterno_app_data_corrupted_backup_' + Date.now(), saved);
+            console.error("Critical: Failed to parse fraterno_app_data, resetting to blank state.", e);
         }
     }
-    return {
-        passengers: [],
-        instructors: [],
-        pilots: [],
-        aeronaves: [],
-        asignacionFlota: [],
-        storeProducts: [],
-        storeSales: [],
-        noOpRules: { daysOfWeek: ['1', '2'], specificDates: [] },
-        users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }]
-    };
+    const blank = window.createBlankAppData();
+    localStorage.setItem('fraterno_app_data', JSON.stringify(blank));
+    localStorage.setItem('factura_seq', '1');
+    return blank;
 }
 window.AppData = loadAppData();
+if (window.TariffGuard) {
+    window.TariffGuard.ensureVersionMetadata();
+}
 
 // Migration for old date formats DD/MM/YYYY to YYYY-MM-DD
 if (window.AppData.passengers && window.AppData.passengers.length > 0) {
@@ -113,24 +222,6 @@ if (window.AppData.pilots && window.AppData.pilots.length > 0) {
     });
     window.AppData.pilots = [];
     window.saveAppData();
-}
-
-/// One-time wipe of transactional data for production start
-if (!localStorage.getItem('fraterno_wiped_transactional_v2')) {
-    window.AppData.passengers = [];
-    window.AppData.asignacionFlota = [];
-    window.AppData.timeTracking = [];
-    window.AppData.cajaMenor = [];
-    
-    if (window.AppData.inventory) {
-        window.AppData.inventory.forEach(item => {
-            item.jumps = 0; // Reset parachute usage
-        });
-    }
-
-    window.saveAppData();
-    localStorage.setItem('fraterno_wiped_transactional_v2', 'true');
-    console.log("Transactional data wiped for production start.");
 }
 
 window.addEventListener('beforeunload', window.saveAppData);
@@ -232,6 +323,17 @@ function router() {
         return; // Stop execution and wait for hashchange
     }
 
+    // Control de acceso basado en roles (RBAC - OWASP A01 Broken Access Control)
+    if (currentRole && currentRole !== 'admin' && hash !== '/b2c' && hash !== '/autogestion' && hash !== '/login') {
+        const restrictedForVentas = ['/', '/dashboard', '/facturacion', '/configuracion'];
+        if (currentRole === 'ventas' && restrictedForVentas.includes(hash)) {
+            alert('Acceso denegado: Su rol no tiene permisos para acceder a este módulo.');
+            hash = '/registro-salto';
+            window.location.hash = '#/registro-salto';
+            return;
+        }
+    }
+
     const appView = document.getElementById('app-view');
     if (!appView) {
         console.error("Critical: #app-view not found.");
@@ -290,10 +392,11 @@ function router() {
             }
         } catch (err) {
             console.error("Module Render Error:", err);
+            const safeMsg = window.escapeHTML ? window.escapeHTML(err.message || 'Error interno') : 'Error interno';
             appView.innerHTML = `<div style="padding:2rem;color:red;text-align:center;">
                 <h3>Error Crítico de Renderizado</h3>
                 <p>El módulo no pudo cargar correctamente debido a un error interno.</p>
-                <code>${err.message}</code>
+                <code>${safeMsg}</code>
             </div>`;
         }
     } else {
@@ -303,14 +406,16 @@ function router() {
         console.error("Critical Router Error:", criticalErr);
         const appView = document.getElementById('app-view');
         if (appView) {
+            const safeCrit = window.escapeHTML ? window.escapeHTML(criticalErr.message || 'Error de navegación') : 'Error de navegación';
             appView.innerHTML = `<div style="padding:2rem;color:red;text-align:center;">
                 <h3>Error Crítico del Sistema</h3>
                 <p>El sistema encontró un error al intentar navegar.</p>
-                <code>${criticalErr.message}</code>
+                <code>${safeCrit}</code>
             </div>`;
         }
     }
 }
+window.router = router;
 
 // Listen to hash changes
 window.addEventListener('hashchange', router);
@@ -321,9 +426,17 @@ window.addEventListener('load', async () => {
         const res = await fetch('/api/state');
         if (res.ok) {
             const data = await res.json();
-            if (Object.keys(data).length > 0) {
+            if (data && data._resetVersion === CLEAN_RESET_VERSION) {
                 window.AppData = data;
-                localStorage.setItem('fraterno_app_data', JSON.stringify(data));
+                if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
+                window.saveToLocalStorageSafe(window.AppData);
+            } else {
+                // El servidor aún tenía datos de prueba o estado vacío previo: sincronizar el estado limpio
+                const blank = window.createBlankAppData();
+                window.AppData = blank;
+                window.saveToLocalStorageSafe(blank);
+                try { localStorage.setItem('factura_seq', '1'); } catch (e) {}
+                window.saveAppData();
             }
         }
     } catch (e) {

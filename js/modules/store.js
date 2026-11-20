@@ -56,12 +56,12 @@ window.Modules.store = {
             }
             
             catalogGrid.innerHTML = products.map(p => `
-                <div class="store-product-card" style="border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: white; cursor: pointer; transition: transform 0.2s; text-align: center; display: flex; flex-direction: column;" data-id="${p.id}">
+                <div class="store-product-card" style="border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: white; cursor: pointer; transition: transform 0.2s; text-align: center; display: flex; flex-direction: column;" data-id="${escapeHTML(p.id)}">
                     <div style="height: 150px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                        ${p.image ? `<img src="${p.image}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-box" style="font-size: 3rem; color: #ccc;"></i>`}
+                        ${p.image ? `<img src="${escapeHTML(p.image)}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-box" style="font-size: 3rem; color: #ccc;"></i>`}
                     </div>
                     <div style="padding: 1rem; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">${p.name}</h4>
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">${escapeHTML(p.name)}</h4>
                         <div style="color: var(--brand-success); font-weight: bold; font-size: 1.1rem;">${fmt(p.price)}</div>
                         <button class="btn btn-sm" style="margin-top: 0.5rem; background: var(--brand-action); color: white; width: 100%;"><i class="fas fa-cart-plus"></i> Agregar</button>
                     </div>
@@ -99,7 +99,7 @@ window.Modules.store = {
                     return `
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #eee;">
                             <div style="flex: 1;">
-                                <div style="font-weight: 600; font-size: 0.95rem;">${item.name}</div>
+                                <div style="font-weight: 600; font-size: 0.95rem;">${escapeHTML(item.name)}</div>
                                 <div style="color: var(--text-secondary); font-size: 0.85rem;">${fmt(item.price)} x <input type="number" class="cart-qty-input" data-index="${index}" value="${item.qty}" min="1" style="width: 40px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; text-align: center;"></div>
                             </div>
                             <div style="font-weight: bold; color: var(--text-primary); margin-right: 1rem;">${fmt(subtotal)}</div>
@@ -174,9 +174,9 @@ window.Modules.store = {
             const deptsHtml = Object.keys(colombiaGeo).map(d => `<option value="${d}">${d}</option>`).join('');
             
             const modalHtml = `
-            <div id="checkoutModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.2s;">
-                <div style="background: var(--bg-card, #ffffff); padding: 2rem; border-radius: 12px; width: 600px; max-width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.3); color: var(--text-primary);">
-                    <h3 style="margin-top: 0; font-size: 1.25rem;"><i class="fas fa-file-invoice" style="color: #0ea5e9; margin-right: 0.5rem;"></i> Facturación - Finalizar Venta</h3>
+            <div id="checkoutModal" class="fraterno-modal-overlay" style="display: flex;">
+                <div class="fraterno-modal-card" style="width: 600px; max-width: 95%; max-height: 90vh; overflow-y: auto;">
+                    <h3><i class="fas fa-file-invoice" style="color: var(--brand-action);"></i> Facturación - Finalizar Venta</h3>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group" style="margin-bottom: 0;">

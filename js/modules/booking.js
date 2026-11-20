@@ -25,6 +25,9 @@ window.Modules.booking = {
                         <input type="checkbox" id="filter-minor" style="accent-color: #F97316; width: 16px; height: 16px; cursor: pointer;">
                         <label for="filter-minor" style="color: #F97316; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin: 0;">Es Menor de Edad</label>
                     </div>
+                    <button class="btn btn-warning" id="btn-booking-email-alerts" style="padding: 0.5rem 1rem;" title="Alertas por correo para reservas con pago incompleto a 10 días o menos">
+                        <i class="fas fa-envelope-open-text"></i> Alertas Pago ≤10d (<span id="booking-alerts-count">0</span>)
+                    </button>
                     <button class="btn btn-primary" id="booking-btn-clear" style="padding: 0.5rem 1rem;">
                         <i class="fas fa-times"></i> Limpiar
                     </button>
@@ -278,21 +281,31 @@ window.Modules.booking = {
 
             paxObj.cams = selectedCams.length > 0 ? selectedCams.join(', ') : 'Ninguna';
             
-            // Recalculate base manualPrice from Maestro de Valores
+            // Recalculate base manualPrice using passenger's frozen tariffSnapshot (never retroactively applying newer Maestro rates)
             const getPrice = (name) => {
-                const item = (window.AppData.maestroValores || []).find(x => x.name === name);
+                if (window.TariffGuard) {
+                    return window.TariffGuard.getPriceForRecord(paxObj, name);
+                }
+                const list = (paxObj.tariffSnapshot && Array.isArray(paxObj.tariffSnapshot.items))
+                    ? paxObj.tariffSnapshot.items
+                    : (window.AppData.maestroValores || []);
+                const item = list.find(x => x.name === name);
                 return item && item.price ? parseInt(String(item.price).replace(/\D/g, ''), 10) || 0 : 0;
             };
             
-            let newPrice = getPrice(paxObj.type);
+            const baseItemName = window.TariffGuard
+                ? window.TariffGuard.resolveJumpTypeItemName(paxObj.type, window.TariffGuard.getEffectiveMaestroForRecord(paxObj))
+                : (paxObj.type === 'Tandem' ? 'Salto Tandem' : paxObj.type);
+            let newPrice = getPrice(baseItemName);
             selectedCams.forEach(cam => {
                 if (cam.includes('360')) newPrice += getPrice('Cámara 360');
-                if (cam.includes('GoPro')) newPrice += getPrice('Cámara GoPro');
+                if (cam.includes('GoPro') || cam.includes('Go-Pro')) newPrice += getPrice('Cámara Go-Pro');
                 if (cam.includes('Externa')) newPrice += getPrice('Cámara Externa');
             });
             
             if (!paxObj.financiera) paxObj.financiera = { manualPrice: 0, discount: 0, totalPaid: 0 };
             paxObj.financiera.manualPrice = newPrice;
+            paxObj.financiera.totalValue = Math.max(0, newPrice - (paxObj.financiera.discount || 0));
             
             if (window.saveAppData) window.saveAppData();
             alert('Reserva actualizada exitosamente.');
@@ -468,7 +481,7 @@ window.Modules.booking = {
                 // Add Toggle Event Logic
                 const toggleBtn = cell.querySelector('.noop-toggle-btn');
                 if (toggleBtn) {
-                    toggleBtn.addEventListener('click', (e) => {
+                    toggleBtn.addEventListener('click', async (e) => {
                         e.stopPropagation();
                         window.AppData = window.AppData || {};
                         window.AppData.noOpRules = window.AppData.noOpRules || { daysOfWeek: ['1', '2'], specificDates: [] };
@@ -480,7 +493,8 @@ window.Modules.booking = {
                             if (paxCount > 0) {
                                 confirmMsg += `\n\n¡ATENCIÓN! Este día cuenta con ${paxCount} reserva(s) activa(s).\nSi lo bloqueas, no se podrán tomar reservas nuevas, pero los pasajeros existentes permanecerán en el sistema.`;
                             }
-                            if (!confirm(confirmMsg)) return;
+                            const ok = window.showConfirm ? await window.showConfirm(confirmMsg, { title: 'Bloquear Día Operativo' }) : confirm(confirmMsg);
+                            if (!ok) return;
 
                             window.AppData.noOpRules.specificDates.push(dStr);
                             window.AppData.noOpRules.specificDates.sort();
@@ -570,6 +584,8 @@ window.Modules.booking = {
                 paxList.innerHTML = `<p style="color: var(--text-secondary); text-align: center; margin-top: 2rem;">No hay pasajeros registrados.</p>`;
                 return;
             }
+
+            const fmtMoney = (n) => '$' + parseInt(n || 0, 10).toLocaleString('es-CO');
             
             paxList.innerHTML = paxArray.map(p => {
                 const isCancelled = p.paxStatus === 'Cancelado / Cancelled';
@@ -579,9 +595,70 @@ window.Modules.booking = {
                 const deleteBtn = !isCancelled ? `<button class="btn-cancel-res" data-id="${p.id}" style="background: transparent; border: none; color: var(--brand-danger); cursor: pointer; padding: 0 4px;" title="Cancelar Reserva"><i class="fas fa-trash-alt"></i></button>` : '';
                 const editBtn = !isCancelled ? `<button class="btn-edit-res" data-id="${p.id}" style="background: transparent; border: none; color: var(--brand-blue); cursor: pointer; padding: 0 4px;" title="Editar Reserva"><i class="fas fa-pencil-alt"></i></button>` : '';
                 const cancelMsg = isCancelled ? `<div style="color: var(--brand-danger); font-size: 0.8rem; margin-top: 0.5rem; background: rgba(248, 97, 69, 0.1); padding: 4px 8px; border-radius: 4px;"><strong>Cancelado:</strong> ${escapeHTML(p.observacionesCancelacion) || 'Sin observaciones'}</div>` : '';
+
+                // Relacionar Información del Pago en el Panel Derecho (Req #4, #9, #10)
+                const finSummary = window.getPaxFinancialSummary ? window.getPaxFinancialSummary(p) : {
+                    totalValue: (p.financiera?.manualPrice || 0) - (p.financiera?.discount || 0),
+                    totalPaid: p.financiera?.totalPaid || 0,
+                    pending: Math.max(0, ((p.financiera?.manualPrice || 0) - (p.financiera?.discount || 0)) - (p.financiera?.totalPaid || 0)),
+                    isComplete: ((p.financiera?.totalPaid || 0) >= ((p.financiera?.manualPrice || 0) - (p.financiera?.discount || 0)) && ((p.financiera?.manualPrice || 0) > 0)),
+                    payMethod: p.financiera?.payMethod || 'Efectivo'
+                };
+
+                const daysUntilJump = (window.PaymentAlertsHelper && p.date) ? window.PaymentAlertsHelper.getDaysUntilJump(p.date) : null;
+                const isUrgentPaymentAlert = !isCancelled && !finSummary.isComplete && daysUntilJump !== null && daysUntilJump >= 0 && daysUntilJump <= 10;
+
+                let paymentStatusHtml = '';
+                if (!isCancelled) {
+                    if (finSummary.isComplete) {
+                        paymentStatusHtml = `
+                            <div style="margin-top: 0.55rem; padding: 0.55rem 0.75rem; border-radius: 8px; background: rgba(16, 185, 129, 0.12); border: 1px solid var(--brand-success);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; color: var(--brand-success); font-weight: 700; font-size: 0.82rem;">
+                                    <span><i class="fas fa-check-circle"></i> PAGO COMPLETO</span>
+                                    <span>${fmtMoney(finSummary.totalPaid)}</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                                    Valor Reserva: <strong>${fmtMoney(finSummary.totalValue)}</strong> | Medio: <strong>${escapeHTML(finSummary.payMethod)}</strong>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        paymentStatusHtml = `
+                            <div style="margin-top: 0.55rem; padding: 0.55rem 0.75rem; border-radius: 8px; background: rgba(220, 38, 38, 0.1); border: 1px solid var(--brand-danger);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; color: var(--brand-danger); font-weight: 700; font-size: 0.82rem;">
+                                    <span><i class="fas fa-exclamation-triangle"></i> ALERTA: PAGO INCOMPLETO</span>
+                                    <span>Saldo: ${fmtMoney(finSummary.pending)}</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 3px;">
+                                    Total: <strong>${fmtMoney(finSummary.totalValue)}</strong> | Abonado: <strong>${fmtMoney(finSummary.totalPaid)}</strong>
+                                </div>
+                                ${isUrgentPaymentAlert ? `
+                                    <div style="margin-top: 0.45rem; padding-top: 0.45rem; border-top: 1px dashed rgba(220, 38, 38, 0.35); display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                                        <span style="font-size: 0.74rem; color: var(--brand-danger); font-weight: 700;">
+                                            <i class="fas fa-clock"></i> Faltan ${daysUntilJump} día(s) para el salto
+                                        </span>
+                                        <button type="button" class="btn btn-warning btn-sm btn-send-pax-email-alert" data-id="${p.id}" style="padding: 0.2rem 0.55rem; font-size: 0.73rem;">
+                                            <i class="fas fa-envelope"></i> Alerta Correo
+                                        </button>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }
+                }
+
+                // Soporte de Pago B2C visible en Reservas (Req #10)
+                const hasB2CSupport = Boolean((p.paymentSupport && p.paymentSupport.dataUrl) || p.soportePago);
+                const supportHtml = hasB2CSupport
+                    ? `<button type="button" class="btn btn-primary btn-sm btn-view-b2c-support" data-id="${p.id}" style="margin-top: 0.45rem; width: 100%; padding: 0.38rem 0.6rem; font-size: 0.78rem;">
+                           <i class="fas fa-file-invoice-dollar"></i> Ver Soporte de Pago Adjunto (B2C)
+                       </button>`
+                    : `<div style="margin-top: 0.4rem; font-size: 0.74rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem;">
+                           <i class="fas fa-receipt"></i> Soporte de pago B2C: No adjuntado
+                       </div>`;
                 
                 return `
-                <div style="border: 1px solid var(--border-color); padding: 0.75rem; border-radius: var(--border-radius-sm); margin-bottom: 0.5rem; background: var(--bg-surface);">
+                <div style="border: 1px solid var(--border-color); padding: 0.75rem; border-radius: var(--border-radius-sm); margin-bottom: 0.6rem; background: var(--bg-surface);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem;">
                         <strong style="color: var(--brand-blue);"><i class="fas fa-user"></i> ${escapeHTML(p.name)} ${medHtml} ${minorHtml}</strong>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -597,10 +674,46 @@ window.Modules.booking = {
                         <i class="fas fa-calendar"></i> ${escapeHTML(p.date)} &nbsp;|&nbsp; <i class="fas fa-clock"></i> ${escapeHTML(p.time || 'N/A')}
                         ${p.aeronave && p.aeronave !== 'Sin asignar' ? `<br><i class="fas fa-plane"></i> ${escapeHTML(p.aeronave)}` : ''}
                     </div>
+                    ${paymentStatusHtml}
+                    ${!isCancelled ? supportHtml : ''}
                     ${cancelMsg}
                 </div>
                 `;
             }).join('');
+
+            // Attach event listeners to B2C payment support viewer buttons (Req #10)
+            paxList.querySelectorAll('.btn-view-b2c-support').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const p = window.AppData.passengers.find(x => x.id === id);
+                    if (p && window.viewPaymentSupportModal) {
+                        window.viewPaymentSupportModal(p);
+                    }
+                });
+            });
+
+            // Attach event listeners to individual Email Alert buttons (Req #9)
+            paxList.querySelectorAll('.btn-send-pax-email-alert').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const p = window.AppData.passengers.find(x => x.id === id);
+                    if (!p || !window.PaymentAlertsHelper) return;
+                    const finSummary = window.getPaxFinancialSummary(p);
+                    const daysRem = window.PaymentAlertsHelper.getDaysUntilJump(p.date) || 0;
+                    e.currentTarget.disabled = true;
+                    e.currentTarget.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    await window.PaymentAlertsHelper.sendEmailAlert({
+                        pax: p,
+                        daysRemaining: daysRem,
+                        totalValue: finSummary.totalValue,
+                        totalPaid: finSummary.totalPaid,
+                        pending: finSummary.pending
+                    }, false);
+                    updateAlertsCounter();
+                    if (activeDateString) renderDayDetails(activeDateString, false);
+                    else executeSearch();
+                });
+            });
 
             // Attach event listeners to cancel buttons
             paxList.querySelectorAll('.btn-cancel-res').forEach(btn => {
@@ -726,11 +839,35 @@ window.Modules.booking = {
             executeSearch();
         });
 
+        function updateAlertsCounter() {
+            const countSpan = document.getElementById('booking-alerts-count');
+            if (!countSpan || !window.PaymentAlertsHelper) return;
+            const list = window.PaymentAlertsHelper.getQualifyingReservations();
+            countSpan.textContent = list.length;
+        }
+
+        const btnEmailAlerts = document.getElementById('btn-booking-email-alerts');
+        if (btnEmailAlerts) {
+            btnEmailAlerts.addEventListener('click', () => {
+                if (window.PaymentAlertsHelper) {
+                    window.PaymentAlertsHelper.openAlertsCenterModal(() => {
+                        updateAlertsCounter();
+                        if (activeDateString) renderDayDetails(activeDateString, false);
+                        else executeSearch();
+                    });
+                }
+            });
+        }
+
         // Init
         const initDate = new Date();
         activeDateString = formatToYYYYMMDD(initDate);
         currentDate = new Date(initDate.getFullYear(), initDate.getMonth(), 1);
         renderCalendar();
+        updateAlertsCounter();
+        if (window.PaymentAlertsHelper) {
+            window.PaymentAlertsHelper.runAutoCheckOnLoad();
+        }
         
         // Show today's pax list by default
         const isNoOp = isNoOpDay(initDate);

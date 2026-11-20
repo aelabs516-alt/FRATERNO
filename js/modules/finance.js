@@ -316,9 +316,10 @@ window.Modules.finance = {
 
             // Bind deletes
             document.querySelectorAll('.btn-del-tx').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    if (confirm('¿Eliminar este movimiento?')) {
-                        const id = e.currentTarget.getAttribute('data-id');
+                btn.addEventListener('click', async (e) => {
+                    const id = e.currentTarget.getAttribute('data-id');
+                    const ok = window.showConfirm ? await window.showConfirm('¿Eliminar este movimiento?', { title: 'Eliminar Movimiento', type: 'danger' }) : confirm('¿Eliminar este movimiento?');
+                    if (ok) {
                         window.AppData.pettyCash = window.AppData.pettyCash.filter(x => x.id !== id);
                         if(window.saveAppData) window.saveAppData();
                         renderTransactions();
@@ -383,7 +384,7 @@ window.Modules.finance = {
         });
 
         // Closing Logic
-        document.getElementById('btn-close-cash').addEventListener('click', () => {
+        document.getElementById('btn-close-cash').addEventListener('click', async () => {
             const todayStr = new Date().toLocaleDateString('en-CA');
             const txsToday = window.AppData.pettyCash.filter(t => t.date === todayStr);
             if (txsToday.length === 0) return alert('No hay movimientos hoy para cerrar.');
@@ -393,7 +394,8 @@ window.Modules.finance = {
                 return alert('La caja de hoy ya fue cerrada. Consulta el historial.');
             }
 
-            if (confirm('¿Estás seguro de realizar el cierre de caja? Esto guardará un registro inmutable del día.')) {
+            const ok = window.showConfirm ? await window.showConfirm('¿Estás seguro de realizar el cierre de caja? Esto guardará un registro inmutable del día.', { title: 'Confirmar Cierre de Caja', type: 'warning' }) : confirm('¿Estás seguro de realizar el cierre de caja? Esto guardará un registro inmutable del día.');
+            if (ok) {
                 let totalIn = 0, totalOut = 0;
                 txsToday.forEach(tx => {
                     if (tx.type === 'IN') totalIn += tx.amount;

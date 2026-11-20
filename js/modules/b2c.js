@@ -336,9 +336,15 @@ window.Modules.b2c = {
             window.AppData = window.AppData || {};
             window.AppData.passengers = window.AppData.passengers || [];
 
-            // Add new pax automatically set to "Pendiente Check-in" 
+            // Add new pax automatically set to "Pendiente Check-in" with frozen tariff snapshot
+            const b2cSnapshot = window.TariffGuard ? window.TariffGuard.buildTariffSnapshot() : null;
+            const b2cBasePrice = window.TariffGuard
+                ? window.TariffGuard.getPriceForRecord({ tariffSnapshot: b2cSnapshot }, window.TariffGuard.resolveJumpTypeItemName(type, b2cSnapshot?.items))
+                : 0;
             window.AppData.passengers.push({
                 id: 'b2c_' + Date.now(),
+                createdAt: new Date().toISOString(),
+                tariffSnapshot: b2cSnapshot,
                 name: name,
                 doc: doc,
                 phone: phone,
@@ -352,6 +358,7 @@ window.Modules.b2c = {
                 paxStatus: 'Pendiente Check-in',
                 flightStatus: 'En Espera',
                 waiverSigned: false,
+                financiera: { manualPrice: b2cBasePrice, discount: 0, totalPaid: 0 },
                 source: 'B2C'
             });
 

@@ -54,12 +54,13 @@ window.Modules.assignment = {
             const tandemRigs = window.AppData?.tandemRigs || [];
             window.AppData.instructorAssignments = window.AppData.instructorAssignments || {};
             
-            // Filtra los empleados que tengan rol/servicios de instructor
+            // Filtra los empleados que tengan rol/servicios de instructor (Req #6: Instructor Tándem, AFF y S&TA)
             let instructores = employees.filter(e => {
-                if(e.role && e.role.toLowerCase().includes('instructor')) return true;
-                if(e.services && e.services.includes('Salto Tándem')) return true;
-                if(e.category && e.category.toLowerCase().includes('instructor')) return true;
-                if(e.name && e.name.toLowerCase().includes('instructor')) return true;
+                if (window.isAssignableInstructor && window.isAssignableInstructor(e)) return true;
+                if (e.role && (e.role.toLowerCase().includes('instructor') || e.role === 'S&TA')) return true;
+                if (e.services && e.services.includes('Salto Tándem')) return true;
+                if (e.category && e.category.toLowerCase().includes('instructor')) return true;
+                if (e.name && e.name.toLowerCase().includes('instructor')) return true;
                 return false;
             });
             

@@ -456,8 +456,10 @@ window.Modules.checkin = {
             const camInstContainer = document.getElementById('edit-cam-instructor-container');
             if(camInstContainer) camInstContainer.style.display = hasExternalCam ? 'block' : 'none';
 
+            const activePax = (window.AppData.passengers || []).find(p => p.id === activeEditId) || null;
+            const kgExtraRate = (window.TariffGuard ? window.TariffGuard.getPriceForRecord(activePax, 'Valor KG Extra') : 0) || 5000;
             const w = parseFloat(iWeight.value) || 0;
-            if (w > 85) total += (w - 85) * 5000;
+            if (w > 85) total += (w - 85) * kgExtraRate;
             
             iCams.forEach(chk => {
                 if(chk.checked) total += parseInt(chk.dataset.price);
@@ -540,7 +542,27 @@ window.Modules.checkin = {
             });
 
             iInstructor.innerHTML = '<option value="Sin asignar">Sin asignar</option>';
-            const instructorList = window.AppData.employees.filter(e => e.role.includes('Instructor') || e.role.includes('Cameraman') || e.role.includes('Tandem')).map(i => i.name);
+            const formatEmpName = (emp) => (String(emp.name || '') + (emp.lastname ? ' ' + String(emp.lastname) : '')).replace(/\s+/g, ' ').trim();
+
+            // Req #6: Rol cargo Instructor Tándem, AFF y S&TA aplica para Instructor Asignado
+            const instructorList = Array.from(new Set(
+                window.AppData.employees
+                    .filter(e => window.isAssignableInstructor
+                        ? window.isAssignableInstructor(e)
+                        : (e.role && (e.role.includes('Instructor') || e.role === 'S&TA' || e.role.includes('Tandem'))))
+                    .map(formatEmpName)
+                    .filter(Boolean)
+            ));
+
+            const camInstructorList = Array.from(new Set(
+                window.AppData.employees
+                    .filter(e => window.isAssignableCameraInstructor
+                        ? window.isAssignableCameraInstructor(e)
+                        : (e.role && (e.role.includes('Instructor') || e.role === 'S&TA' || e.role.includes('Camara') || e.role.includes('Cameraman') || e.role.includes('Tandem'))))
+                    .map(formatEmpName)
+                    .filter(Boolean)
+            ));
+
             const iCamInstructor = document.getElementById('edit-p-cam-instructor');
             let currentCamInst = iCamInstructor ? iCamInstructor.value : 'Sin asignar';
 
@@ -551,11 +573,26 @@ window.Modules.checkin = {
                 }
             });
             iInstructor.innerHTML += instHtml;
-            if (Array.from(iInstructor.options).some(opt => opt.value === currentInst)) iInstructor.value = currentInst;
+            const matchedInstOpt = Array.from(iInstructor.options).find(opt =>
+                opt.value === currentInst || (currentInst && currentInst !== 'Sin asignar' && opt.value.toLowerCase().startsWith(String(currentInst).toLowerCase() + ' '))
+            );
+            if (matchedInstOpt) iInstructor.value = matchedInstOpt.value;
             else iInstructor.value = 'Sin asignar';
 
             if (iCamInstructor) {
-                iCamInstructor.innerHTML = '<option value="Sin asignar">Sin asignar</option>' + instHtml;
+                let camInstHtml = '';
+                camInstructorList.forEach(inst => {
+                    if (!busyInstructors.has(inst)) {
+                        camInstHtml += `<option value="${escapeHTML(inst)}">${escapeHTML(inst)}</option>`;
+                    }
+                });
+                iCamInstructor.innerHTML = '<option value="Sin asignar">Sin asignar</option>' + camInstHtml;
+                const matchedCamOpt = Array.from(iCamInstructor.options).find(opt =>
+                    opt.value === currentCamInst || (currentCamInst && currentCamInst !== 'Sin asignar' && opt.value.toLowerCase().startsWith(String(currentCamInst).toLowerCase() + ' '))
+                );
+                if (matchedCamOpt) {
+                    iCamInstructor.value = matchedCamOpt.value;
+                }
             }
 
         }
@@ -759,12 +796,15 @@ window.Modules.checkin = {
             currentPaxBalance = baseValorReserva - basePagado;
 
             
-            // Populate Dynamic Adiciones based on maestroValores and pax.adiciones
+            // Populate Dynamic Adiciones based on passenger's frozen tariffSnapshot (or current maestroValores if none)
             const containerAdiciones = document.getElementById('checkin-dynamic-adiciones');
             if (containerAdiciones) {
                 containerAdiciones.innerHTML = '';
-                if (window.AppData.maestroValores) {
-                    window.AppData.maestroValores.forEach(v => {
+                const effectiveMaestro = window.TariffGuard
+                    ? window.TariffGuard.getEffectiveMaestroForRecord(pax)
+                    : (window.AppData.maestroValores || []);
+                if (effectiveMaestro && effectiveMaestro.length > 0) {
+                    effectiveMaestro.forEach(v => {
                         // Show cameras or all if Fun Jumper
                         if (v.name.includes('360') || v.name.includes('Externa') || v.name.includes('Go-Pro') || pax.type === 'Fun Jumper') {
                             const lbl = document.createElement('label');
@@ -775,8 +815,8 @@ window.Modules.checkin = {
                             } else if (!pax.adiciones && pax.cams && pax.cams.includes(v.name)) {
                                 isChecked = 'checked';
                             }
-                            const cleanPrice = parseInt(v.price.toString().replace(/[^0-9]/g, '')) || 0;
-                            lbl.innerHTML = `<input type="checkbox" class="cam-chk" value="${v.name}" data-price="${cleanPrice}" ${isChecked}> ${v.name} ($${cleanPrice.toLocaleString('es-CO')})`;
+                            const cleanPrice = parseInt(String(v.price ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+                            lbl.innerHTML = `<input type="checkbox" class="cam-chk" value="${escapeHTML(v.name)}" data-price="${cleanPrice}" ${isChecked}> ${escapeHTML(v.name)} ($${cleanPrice.toLocaleString('es-CO')})`;
                             containerAdiciones.appendChild(lbl);
                         }
                     });
@@ -816,8 +856,11 @@ window.Modules.checkin = {
                     const unlockBtn = document.createElement('button');
                     unlockBtn.className = 'btn btn-outline';
                     unlockBtn.innerHTML = '<i class="fas fa-unlock"></i> Desbloquear (Admin)';
-                    unlockBtn.onclick = () => {
-                        const pwd = prompt('Ingrese clave de Administrador:');
+                    unlockBtn.onclick = async () => {
+                        const pwd = window.showPrompt
+                            ? await window.showPrompt('Ingrese clave de Administrador:', { title: 'Desbloquear Registro', inputType: 'password', placeholder: 'Contraseña...' })
+                            : prompt('Ingrese clave de Administrador:');
+                        if (pwd === null) return;
                         let isValid = false;
                         const adminUser = (window.AppData.users || []).find(u => (u.role === 'admin' || u.role === 'Administrador' || u.role === 'SuperAdmin'));
                         if (adminUser && adminUser.password === pwd) {

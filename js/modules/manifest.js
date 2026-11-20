@@ -1,12 +1,66 @@
 window.Modules = window.Modules || {};
 window.Modules.manifest = {
+    getJumpRestrictionStyle: (val) => {
+        switch (val) {
+            case 'Sin restricción': return { color: '#10b981', light: 'green' };
+            case '25 Saltos':       return { color: '#84cc16', light: 'green' };
+            case '100 Saltos':      return { color: '#eab308', light: 'yellow' };
+            case '200 Saltos':      return { color: '#f59e0b', light: 'yellow' };
+            case '300 Saltos':      return { color: '#f97316', light: 'red' };
+            case '500 Saltos':      return { color: '#ef4444', light: 'red' };
+            case 'Zona Cerrada':    return { color: '#dc2626', light: 'closed' };
+            default:                return { color: '#10b981', light: 'green' };
+        }
+    },
     render: (container) => {
         container.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h2>Manifiesto Operativo (Despegues)</h2>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <input type="date" id="manifest-date-filter" class="form-control" style="width: 200px; background: var(--bg-main);">
-                    <button class="btn btn-primary" onclick="window.location.reload()"><i class="fas fa-sync-alt"></i> Refrescar Tablero</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                <h2 style="margin: 0;"><i class="fas fa-plane-departure" style="color: var(--brand-action);"></i> Manifiesto Operativo (Despegues)</h2>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <input type="date" id="manifest-date-filter" class="form-control" style="width: 180px; background: var(--bg-main);">
+                    <button class="btn btn-primary" id="btn-refresh-manifest"><i class="fas fa-sync-alt"></i> Refrescar Tablero</button>
+                </div>
+            </div>
+
+            <!-- Barra Superior de Control Operativo: Restricción Por Saltos y PONCHERA (Req #1 & #5) -->
+            <div class="card" style="display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap; padding: 1.15rem 1.5rem; margin-bottom: 1.5rem; background: var(--bg-surface); border-left: 4px solid var(--brand-action);">
+                <div class="form-group" style="margin-bottom: 0; min-width: 260px; flex: 1;">
+                    <label style="font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                        <i class="fas fa-traffic-light" id="manifest-restriction-icon" style="color: #10b981;"></i> Restricción Por Saltos:
+                        <span id="manifest-semaforo-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; margin-left: auto;"></span>
+                    </label>
+                    <select id="manifest-jump-restriction" class="form-control" style="font-weight: 700; background: var(--bg-main); border-width: 2px; transition: all 0.25s ease;">
+                        <option value="Sin restricción">🟢 Sin Restricción</option>
+                        <option value="25 Saltos">🟢 25 Saltos</option>
+                        <option value="100 Saltos">🟡 100 Saltos</option>
+                        <option value="200 Saltos">🟠 200 Saltos</option>
+                        <option value="300 Saltos">🟠 300 Saltos</option>
+                        <option value="500 Saltos">🔴 500 Saltos</option>
+                        <option value="Zona Cerrada">⛔ Zona Cerrada / NO-GO</option>
+                    </select>
+                    <div id="manifest-closed-reason-badge" style="display: none; margin-top: 0.45rem; font-size: 0.82rem; font-weight: 700; color: #dc2626; background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.35); border-radius: 6px; padding: 0.35rem 0.65rem; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                        <span><i class="fas fa-exclamation-triangle"></i> Motivo: <strong id="manifest-closed-reason-text"></strong></span>
+                        <button type="button" id="btn-change-closed-reason" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.78rem; text-decoration: underline; font-weight: 700; padding: 0;">Cambiar</button>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0; min-width: 280px; flex: 1.5;">
+                    <label style="font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                        <i class="fas fa-beer" style="color: #f59e0b;"></i> PONCHERA (Instructores que deben la ponchera):
+                    </label>
+                    <div class="multi-dropdown" id="ponchera-dropdown">
+                        <button type="button" class="multi-dropdown-btn" id="ponchera-dropdown-btn">
+                            <span id="ponchera-selected-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Seleccionar instructores...</span>
+                            <i class="fas fa-chevron-down" style="font-size: 0.8rem; color: var(--text-secondary);"></i>
+                        </button>
+                        <div class="multi-dropdown-menu" id="ponchera-dropdown-menu">
+                            <!-- Instructores se inyectan dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="ponchera-badges-container" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; flex: 1;">
+                    <!-- Badges de quienes deben la ponchera -->
                 </div>
             </div>
 
@@ -64,10 +118,356 @@ window.Modules.manifest = {
         }
         const board = document.getElementById('vuelos-board');
         const dateFilter = document.getElementById('manifest-date-filter');
+        const btnRefresh = document.getElementById('btn-refresh-manifest');
+        if (btnRefresh) {
+            btnRefresh.addEventListener('click', () => renderBoard());
+        }
         
         // Initialize date filter to today
         const todayStr = new Date().toLocaleDateString('en-CA');
         dateFilter.value = todayStr;
+
+        // ==========================================
+        // 1. Restricción Por Saltos con Semáforo (Req #1)
+        // ==========================================
+        window.AppData = window.AppData || {};
+        const jumpRestSelect = document.getElementById('manifest-jump-restriction');
+        const restDot = document.getElementById('manifest-semaforo-dot');
+        const restIcon = document.getElementById('manifest-restriction-icon');
+
+        function getSemaforoColor(val) {
+            switch (val) {
+                case 'Sin restricción': return '#10b981'; // Verde (menos restrictivo)
+                case '25 Saltos':       return '#84cc16'; // Verde Lima
+                case '100 Saltos':      return '#eab308'; // Amarillo
+                case '200 Saltos':      return '#f59e0b'; // Ámbar
+                case '300 Saltos':      return '#f97316'; // Naranja Intenso
+                case '500 Saltos':      return '#ef4444'; // Rojo (más restrictivo)
+                case 'Zona Cerrada':    return '#dc2626'; // Rojo Crítico (Operaciones Cerradas / NO-GO)
+                default:                return '#10b981';
+            }
+        }
+
+        const CLOSED_ZONE_REASONS = [
+            'Condiciones Meteorológicas',
+            'Espacio Aéreo y Control de Tráfico (ATC)',
+            'Seguridad en Tierra (Zona de Aterrizaje y Pista)',
+            'Operación en Tierra',
+            'Orden Público'
+        ];
+
+        const closedReasonBadge = document.getElementById('manifest-closed-reason-badge');
+        const closedReasonText = document.getElementById('manifest-closed-reason-text');
+        const btnChangeClosedReason = document.getElementById('btn-change-closed-reason');
+
+        function openClosedZoneReasonModal(preselectedReason) {
+            return new Promise((resolve) => {
+                const defaultReason = CLOSED_ZONE_REASONS.includes(preselectedReason) ? preselectedReason : CLOSED_ZONE_REASONS[0];
+                const overlay = document.createElement('div');
+                overlay.className = 'fraterno-modal-overlay';
+                overlay.style.display = 'flex';
+                overlay.style.zIndex = '99999';
+
+                const optionsHtml = CLOSED_ZONE_REASONS.map(r =>
+                    `<option value="${escapeHTML(r)}" ${r === defaultReason ? 'selected' : ''}>${escapeHTML(r)}</option>`
+                ).join('');
+
+                overlay.innerHTML = `
+                    <div class="fraterno-modal-card" style="width: 490px; max-width: 94%; border-top-color: #dc2626 !important;">
+                        <button type="button" id="closed-reason-close-top" class="btn" style="position: absolute; top: 1.25rem; right: 1.25rem; color: var(--text-secondary); font-size: 1.25rem;"><i class="fas fa-times"></i></button>
+                        <h3 style="color: #dc2626; display: flex; align-items: center; gap: 0.6rem; margin-top: 0;">
+                            <i class="fas fa-exclamation-triangle"></i> Motivo de Zona Cerrada / NO-GO
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 1.25rem;">
+                            Selecciona el motivo por el cual las operaciones de salto quedan cerradas o suspendidas. Este motivo se reflejará en tiempo real en las pantallas <strong>FIDS</strong>.
+                        </p>
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: block;">Motivo de Cierre *</label>
+                            <select id="closed-zone-reason-select" class="form-control" style="font-weight: 600;">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            <button type="button" class="btn btn-outline" id="closed-reason-cancel">Cancelar</button>
+                            <button type="button" class="btn btn-danger" id="closed-reason-confirm" style="background: #dc2626; color: #fff; border: none;">
+                                <i class="fas fa-ban"></i> Confirmar Zona Cerrada
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(overlay);
+                const sel = overlay.querySelector('#closed-zone-reason-select');
+                const btnOk = overlay.querySelector('#closed-reason-confirm');
+                const btnCancel = overlay.querySelector('#closed-reason-cancel');
+                const btnTop = overlay.querySelector('#closed-reason-close-top');
+
+                function finish(val) {
+                    overlay.remove();
+                    resolve(val);
+                }
+
+                btnOk.addEventListener('click', () => finish(sel.value || CLOSED_ZONE_REASONS[0]));
+                btnCancel.addEventListener('click', () => finish(null));
+                btnTop.addEventListener('click', () => finish(null));
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) finish(null); });
+            });
+        }
+
+        function updateManifestRestrictionStyle(val) {
+            const color = getSemaforoColor(val);
+            const isClosed = val === 'Zona Cerrada';
+            if (jumpRestSelect) {
+                jumpRestSelect.style.borderColor = color;
+                jumpRestSelect.style.color = color;
+                jumpRestSelect.style.background = isClosed ? 'rgba(220, 38, 38, 0.12)' : 'var(--bg-main)';
+            }
+            if (restDot) {
+                restDot.style.background = color;
+                restDot.style.boxShadow = `0 0 10px ${color}`;
+            }
+            if (restIcon) {
+                restIcon.className = isClosed ? 'fas fa-exclamation-triangle' : 'fas fa-traffic-light';
+                restIcon.style.color = color;
+            }
+            if (closedReasonBadge && closedReasonText) {
+                if (isClosed && window.AppData.zonaCerradaMotivo) {
+                    closedReasonText.textContent = window.AppData.zonaCerradaMotivo;
+                    closedReasonBadge.style.display = 'flex';
+                } else {
+                    closedReasonBadge.style.display = 'none';
+                }
+            }
+        }
+
+        if (jumpRestSelect) {
+            let lastRestrictionVal = window.AppData.restriccionSaltos || 'Sin restricción';
+            jumpRestSelect.value = lastRestrictionVal;
+            updateManifestRestrictionStyle(lastRestrictionVal);
+
+            jumpRestSelect.addEventListener('change', async (e) => {
+                const newVal = e.target.value;
+                if (newVal === 'Zona Cerrada') {
+                    const selectedReason = await openClosedZoneReasonModal(window.AppData.zonaCerradaMotivo);
+                    if (!selectedReason) {
+                        // Usuario canceló: restaurar valor anterior
+                        jumpRestSelect.value = lastRestrictionVal;
+                        updateManifestRestrictionStyle(lastRestrictionVal);
+                        return;
+                    }
+                    window.AppData.restriccionSaltos = 'Zona Cerrada';
+                    window.AppData.zonaCerradaMotivo = selectedReason;
+                    lastRestrictionVal = 'Zona Cerrada';
+                    updateManifestRestrictionStyle('Zona Cerrada');
+                    if (window.saveAppData) window.saveAppData();
+                } else {
+                    window.AppData.restriccionSaltos = newVal;
+                    window.AppData.zonaCerradaMotivo = '';
+                    lastRestrictionVal = newVal;
+                    updateManifestRestrictionStyle(newVal);
+                    if (window.saveAppData) window.saveAppData();
+                }
+            });
+
+            if (btnChangeClosedReason) {
+                btnChangeClosedReason.addEventListener('click', async () => {
+                    const selectedReason = await openClosedZoneReasonModal(window.AppData.zonaCerradaMotivo);
+                    if (selectedReason) {
+                        window.AppData.zonaCerradaMotivo = selectedReason;
+                        updateManifestRestrictionStyle('Zona Cerrada');
+                        if (window.saveAppData) window.saveAppData();
+                    }
+                });
+            }
+        }
+
+        // ==========================================
+        // 2. PONCHERA Dropdown con Cantidad Múltiple (Req #5)
+        // Un instructor puede deber/pagar más de una ponchera
+        // ==========================================
+        function normalizePoncheraList(rawList) {
+            if (!Array.isArray(rawList)) return [];
+            const map = new Map();
+            rawList.forEach(item => {
+                if (typeof item === 'string' && item.trim()) {
+                    const n = item.trim();
+                    map.set(n, (map.get(n) || 0) + 1);
+                } else if (item && typeof item === 'object' && item.name) {
+                    const n = String(item.name).trim();
+                    const c = Math.max(1, parseInt(item.count, 10) || 1);
+                    if (n) map.set(n, (map.get(n) || 0) + c);
+                }
+            });
+            return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+        }
+
+        window.AppData.ponchera = normalizePoncheraList(window.AppData.ponchera);
+        const poncheraBtn = document.getElementById('ponchera-dropdown-btn');
+        const poncheraMenu = document.getElementById('ponchera-dropdown-menu');
+        const poncheraLabel = document.getElementById('ponchera-selected-label');
+        const poncheraBadges = document.getElementById('ponchera-badges-container');
+
+        function getAllInstructorsForPonchera() {
+            const emps = window.AppData.employees || [];
+            const canonicalMap = new Map();
+
+            emps
+                .filter(e => window.isAssignableCameraInstructor
+                    ? window.isAssignableCameraInstructor(e)
+                    : (e.role && (e.role.includes('Instructor') || e.role === 'S&TA' || e.role.includes('Camara') || e.role.includes('Tandem'))))
+                .forEach(e => {
+                    const fullName = (String(e.name || '') + (e.lastname ? ' ' + String(e.lastname) : '')).replace(/\s+/g, ' ').trim();
+                    if (!fullName) return;
+                    const key = fullName.toLowerCase();
+                    if (!canonicalMap.has(key)) {
+                        canonicalMap.set(key, fullName);
+                    }
+                });
+
+            // Reconciliar si existe un registro en ponchera guardado solo con el primer nombre de un instructor ya listado
+            if (Array.isArray(window.AppData.ponchera) && canonicalMap.size > 0) {
+                const canonList = Array.from(canonicalMap.values());
+                window.AppData.ponchera.forEach(item => {
+                    if (!item || !item.name) return;
+                    const low = item.name.trim().toLowerCase();
+                    if (!canonicalMap.has(low)) {
+                        const matched = canonList.find(fn => fn.toLowerCase().startsWith(low + ' '));
+                        if (matched) {
+                            item.name = matched;
+                        }
+                    }
+                });
+                window.AppData.ponchera = normalizePoncheraList(window.AppData.ponchera);
+            }
+
+            return Array.from(canonicalMap.values()).sort((a, b) => a.localeCompare(b));
+        }
+
+        function setInstructorPoncheraCount(instName, newCount) {
+            let list = normalizePoncheraList(window.AppData.ponchera);
+            const idx = list.findIndex(x => x.name === instName);
+            if (newCount <= 0) {
+                if (idx !== -1) list.splice(idx, 1);
+            } else {
+                if (idx !== -1) list[idx].count = newCount;
+                else list.push({ name: instName, count: newCount });
+            }
+            window.AppData.ponchera = list;
+            if (window.saveAppData) window.saveAppData();
+            renderPoncheraUI();
+        }
+
+        function renderPoncheraUI() {
+            if (!poncheraMenu || !poncheraLabel || !poncheraBadges) return;
+            window.AppData.ponchera = normalizePoncheraList(window.AppData.ponchera);
+            const selected = window.AppData.ponchera;
+            const allInst = getAllInstructorsForPonchera();
+
+            if (selected.length === 0) {
+                poncheraLabel.textContent = 'Ningún instructor seleccionado';
+                poncheraLabel.style.color = 'var(--text-secondary)';
+            } else {
+                poncheraLabel.textContent = selected.map(x => `${x.name} (x${x.count})`).join(', ');
+                poncheraLabel.style.color = 'var(--text-primary)';
+                poncheraLabel.style.fontWeight = '700';
+            }
+
+            // Render Badges with quantity and +/- controls
+            poncheraBadges.innerHTML = selected.map(item => `
+                <span style="display: inline-flex; align-items: center; gap: 0.45rem; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #f59e0b; padding: 0.3rem 0.65rem; border-radius: 20px; font-weight: 700; font-size: 0.84rem;">
+                    <i class="fas fa-beer"></i>
+                    <span>${escapeHTML(item.name)}</span>
+                    <span style="background: #f59e0b; color: #051017; padding: 1px 7px; border-radius: 12px; font-weight: 900; font-size: 0.78rem;">x${item.count}</span>
+                    <button type="button" class="btn-dec-ponchera-badge" data-name="${escapeHTML(item.name)}" title="Restar 1 ponchera" style="width: 20px; height: 20px; border-radius: 50%; background: rgba(245, 158, 11, 0.25); color: #f59e0b; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; cursor: pointer;"><i class="fas fa-minus"></i></button>
+                    <button type="button" class="btn-inc-ponchera-badge" data-name="${escapeHTML(item.name)}" title="Sumar 1 ponchera" style="width: 20px; height: 20px; border-radius: 50%; background: rgba(245, 158, 11, 0.25); color: #f59e0b; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; cursor: pointer;"><i class="fas fa-plus"></i></button>
+                    <button type="button" class="btn-remove-ponchera" data-name="${escapeHTML(item.name)}" title="Quitar todas" style="color: var(--brand-danger); font-size: 0.9rem; margin-left: 2px; cursor: pointer;"><i class="fas fa-times-circle"></i></button>
+                </span>
+            `).join('');
+
+            poncheraBadges.querySelectorAll('.btn-dec-ponchera-badge').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const name = e.currentTarget.getAttribute('data-name');
+                    const entry = selected.find(x => x.name === name);
+                    setInstructorPoncheraCount(name, (entry ? entry.count : 1) - 1);
+                });
+            });
+            poncheraBadges.querySelectorAll('.btn-inc-ponchera-badge').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const name = e.currentTarget.getAttribute('data-name');
+                    const entry = selected.find(x => x.name === name);
+                    setInstructorPoncheraCount(name, (entry ? entry.count : 0) + 1);
+                });
+            });
+            poncheraBadges.querySelectorAll('.btn-remove-ponchera').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const nameToRem = e.currentTarget.getAttribute('data-name');
+                    setInstructorPoncheraCount(nameToRem, 0);
+                });
+            });
+
+            // Render Dropdown Menu Items with Checkbox + Stepper (- / count / +)
+            if (allInst.length === 0) {
+                poncheraMenu.innerHTML = `<div style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.85rem; text-align: center;">No hay instructores registrados en RRHH.</div>`;
+            } else {
+                poncheraMenu.innerHTML = allInst.map(name => {
+                    const entry = selected.find(x => x.name === name);
+                    const count = entry ? entry.count : 0;
+                    const isChecked = count > 0 ? 'checked' : '';
+                    return `
+                        <div class="multi-dropdown-item" style="justify-content: space-between; cursor: default;">
+                            <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; flex: 1; margin: 0;">
+                                <input type="checkbox" class="chk-ponchera-inst" value="${escapeHTML(name)}" ${isChecked}>
+                                <span style="font-weight: ${count > 0 ? '700' : '500'}; color: ${count > 0 ? '#f59e0b' : 'var(--text-primary)'};">${escapeHTML(name)}</span>
+                            </label>
+                            <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                                <button type="button" class="btn-step-ponchera" data-action="dec" data-name="${escapeHTML(name)}" style="width: 24px; height: 24px; border-radius: 6px; background: var(--bg-surface-hover); border: 1px solid var(--border-color); color: var(--text-primary); font-weight: bold; display: inline-flex; align-items: center; justify-content: center;">-</button>
+                                <span style="min-width: 26px; text-align: center; font-weight: 800; font-size: 0.88rem; color: ${count > 0 ? '#f59e0b' : 'var(--text-secondary)'};">${count}</span>
+                                <button type="button" class="btn-step-ponchera" data-action="inc" data-name="${escapeHTML(name)}" style="width: 24px; height: 24px; border-radius: 6px; background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #f59e0b; font-weight: bold; display: inline-flex; align-items: center; justify-content: center;">+</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                poncheraMenu.querySelectorAll('.chk-ponchera-inst').forEach(chk => {
+                    chk.addEventListener('change', (e) => {
+                        const val = e.target.value;
+                        const entry = selected.find(x => x.name === val);
+                        if (e.target.checked) {
+                            setInstructorPoncheraCount(val, entry ? entry.count : 1);
+                        } else {
+                            setInstructorPoncheraCount(val, 0);
+                        }
+                    });
+                });
+
+                poncheraMenu.querySelectorAll('.btn-step-ponchera').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const name = e.currentTarget.getAttribute('data-name');
+                        const action = e.currentTarget.getAttribute('data-action');
+                        const entry = selected.find(x => x.name === name);
+                        const curr = entry ? entry.count : 0;
+                        const next = action === 'inc' ? curr + 1 : Math.max(0, curr - 1);
+                        setInstructorPoncheraCount(name, next);
+                    });
+                });
+            }
+        }
+
+        if (poncheraBtn && poncheraMenu) {
+            poncheraBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                poncheraMenu.classList.toggle('open');
+            });
+            document.addEventListener('click', (e) => {
+                const wrapper = document.getElementById('ponchera-dropdown');
+                if (wrapper && !wrapper.contains(e.target)) {
+                    poncheraMenu.classList.remove('open');
+                }
+            });
+        }
+
+        renderPoncheraUI();
 
         function renderBoard() {
             board.innerHTML = '';

@@ -33,6 +33,7 @@ window.Modules.hrms = {
                                 <option value="Instructor AFF">Instructor AFF</option>
                                 <option value="Instructor Tandem">Instructor Tandem</option>
                                 <option value="Piloto">Pilotos</option>
+                                <option value="Rigger">Rigger</option>
                                 <option value="S&TA">S&TA</option>
                                 <option value="Tierra">Tierra / Ventas</option>
                             </select>
@@ -116,9 +117,15 @@ window.Modules.hrms = {
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label>Correo Electrónico</label>
-                            <input type="email" id="emp-email" class="form-control" placeholder="Ej. juan@correo.com">
+                        <div style="display: flex; gap: 1rem;">
+                            <div class="form-group" style="flex: 1;">
+                                <label>Fecha de Nacimiento</label>
+                                <input type="date" id="emp-dob" class="form-control">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Correo Electrónico</label>
+                                <input type="email" id="emp-email" class="form-control" placeholder="Ej. juan@correo.com">
+                            </div>
                         </div>
                         
                         <div class="form-group">
@@ -131,6 +138,7 @@ window.Modules.hrms = {
                                 <option value="Instructor AFF">Instructor AFF</option>
                                 <option value="Instructor Tandem">Instructor Tandem</option>
                                 <option value="Piloto">Piloto</option>
+                                <option value="Rigger">Rigger</option>
                                 <option value="S&TA">S&TA</option>
                                 <option value="Tierra">Tierra / Ventas</option>
                             </select>
@@ -195,6 +203,7 @@ window.Modules.hrms = {
                 case 'Instructor Tandem': return '#d93025'; // red
                 case 'Coach': return '#00acc1'; // cyan
                 case 'Camara Flyer': return '#e37400'; // orange
+                case 'Rigger': return '#0d9488'; // teal
                 case 'S&TA': return '#3949ab'; // indigo
                 case 'Empacador': return '#8e24aa'; // purple
                 case 'Tierra': return '#1e8e3e'; // green
@@ -210,6 +219,7 @@ window.Modules.hrms = {
                 case 'Instructor Tandem': return 'fa-parachute-box';
                 case 'Coach': return 'fa-chalkboard-teacher';
                 case 'Camara Flyer': return 'fa-camera';
+                case 'Rigger': return 'fa-tools';
                 case 'S&TA': return 'fa-shield-alt';
                 case 'Empacador': return 'fa-box';
                 case 'Tierra': return 'fa-headset';
@@ -261,9 +271,9 @@ window.Modules.hrms = {
 
                 let licHtml = '';
                 if (emp.licencias && emp.licencias.length > 0) {
-                    licHtml = `<div><i class="fas fa-id-badge" style="width: 20px;"></i> ${emp.licencias.join(', ')}</div>`;
+                    licHtml = `<div><i class="fas fa-id-badge" style="width: 20px;"></i> ${escapeHTML(emp.licencias.join(', '))}</div>`;
                 } else if (emp.licencia) {
-                    licHtml = `<div><i class="fas fa-id-badge" style="width: 20px;"></i> ${emp.licencia}</div>`; // fallback
+                    licHtml = `<div><i class="fas fa-id-badge" style="width: 20px;"></i> ${escapeHTML(emp.licencia)}</div>`; // fallback
                 }
 
                 card.innerHTML = `
@@ -276,13 +286,14 @@ window.Modules.hrms = {
                             </div>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-edit-emp" data-id="${emp.id}" style="background: none; border: none; color: var(--brand-action); cursor: pointer; padding: 0.25rem;"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-delete-emp" data-id="${emp.id}" style="background: none; border: none; color: var(--brand-danger); cursor: pointer; padding: 0.25rem;"><i class="fas fa-trash"></i></button>
+                            <button class="btn btn-edit-emp" data-id="${escapeHTML(emp.id)}" style="background: none; border: none; color: var(--brand-action); cursor: pointer; padding: 0.25rem;"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-delete-emp" data-id="${escapeHTML(emp.id)}" style="background: none; border: none; color: var(--brand-danger); cursor: pointer; padding: 0.25rem;"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
                     
                     <div style="display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem; background: var(--bg-surface-hover); padding: 0.75rem; border-radius: 8px;">
                         <div><i class="fas fa-id-card" style="width: 20px;"></i> ${escapeHTML(emp.doc || "N/A")}</div>
+                        ${emp.dob ? `<div><i class="fas fa-birthday-cake" style="width: 20px;"></i> ${escapeHTML(emp.dob)}</div>` : ""}
                         ${emp.phone ? `<div><i class="fas fa-phone" style="width: 20px;"></i> ${escapeHTML(emp.phone)}</div>` : ""}
                         ${emp.email ? `<div><i class="fas fa-envelope" style="width: 20px;"></i> ${escapeHTML(emp.email)}</div>` : ""}
                         ${licHtml}
@@ -291,11 +302,12 @@ window.Modules.hrms = {
                 empList.appendChild(card);
             });
 
-            // Delete listeners (simplified to click on ellipsis for demo)
+            // Delete listeners
             document.querySelectorAll('.btn-delete-emp').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const id = e.currentTarget.getAttribute('data-id');
-                    if (confirm('¿Deseas eliminar a este miembro del personal?')) {
+                    const ok = window.showConfirm ? await window.showConfirm('¿Deseas eliminar a este miembro del personal?', { title: 'Eliminar Miembro', type: 'danger' }) : confirm('¿Deseas eliminar a este miembro del personal?');
+                    if (ok) {
                         window.AppData.employees = window.AppData.employees.filter(emp => emp.id !== id);
                         if(window.saveAppData) window.saveAppData();
                         renderEmployees();
@@ -313,6 +325,7 @@ window.Modules.hrms = {
                         document.getElementById('emp-lastname').value = emp.lastname || '';
                         document.getElementById('emp-doc').value = emp.doc || '';
                         document.getElementById('emp-phone').value = emp.phone || '';
+                        document.getElementById('emp-dob').value = emp.dob || '';
                         document.getElementById('emp-email').value = emp.email || '';
                         document.getElementById('emp-role').value = emp.role;
                         
@@ -483,6 +496,18 @@ window.Modules.hrms = {
         // =======================
         // Modal Logic
         // =======================
+        const roleSelectGlobal = document.getElementById('emp-role');
+        if (roleSelectGlobal) {
+            roleSelectGlobal.addEventListener('change', (e) => {
+                const val = e.target.value;
+                const isOp = ['Piloto', 'Instructor AFF', 'Instructor Tandem', 'Coach', 'Camara Flyer', 'Empacador', 'S&TA', 'Rigger'].includes(val);
+                const licContainer = document.getElementById('licencia-container');
+                const comContainer = document.getElementById('comisiones-container');
+                if (licContainer) licContainer.style.display = isOp ? 'block' : 'none';
+                if (comContainer) comContainer.style.display = isOp ? 'block' : 'none';
+            });
+        }
+
         const modal = document.getElementById('modal-emp');
         document.getElementById('btn-new-emp').addEventListener('click', () => {
             document.getElementById('emp-id').value = '';
@@ -497,23 +522,13 @@ window.Modules.hrms = {
             document.getElementById('emp-lastname').value = '';
             document.getElementById('emp-doc').value = '';
             document.getElementById('emp-phone').value = '';
+            document.getElementById('emp-dob').value = '';
             document.getElementById('emp-email').value = '';
             renderDynamicLicenses([]);
 
             const roleSelect = document.getElementById('emp-role');
-            const licContainer = document.getElementById('licencia-container');
-            const comContainer = document.getElementById('comisiones-container');
-            
             ensureComisionesPopulated();
-            // uncheck all
             document.querySelectorAll('.comision-chk').forEach(c => c.checked = false);
-
-            roleSelect.addEventListener('change', (e) => {
-                const val = e.target.value;
-                const isOp = ['Piloto', 'Instructor AFF', 'Instructor Tandem', 'Coach', 'Camara Flyer', 'Empacador', 'S&TA'].includes(val);
-                licContainer.style.display = isOp ? 'block' : 'none';
-                comContainer.style.display = isOp ? 'block' : 'none';
-            });
             
             // trigger change to set initial state
             roleSelect.dispatchEvent(new Event('change'));
@@ -541,6 +556,7 @@ window.Modules.hrms = {
             const role = document.getElementById('emp-role').value;
             const doc = document.getElementById('emp-doc').value.trim();
             const phone = document.getElementById('emp-phone').value.trim();
+            const dob = document.getElementById('emp-dob').value;
             const email = document.getElementById('emp-email').value.trim();
             const photoUrl = document.getElementById('emp-photo-preview').dataset.url || '';
             
@@ -553,7 +569,7 @@ window.Modules.hrms = {
             if(!name || !doc) return alert('El Nombre y el Documento son obligatorios');
             
             let comisiones = [];
-            if (['Piloto', 'Instructor AFF', 'Instructor Tandem', 'Coach', 'Camara Flyer', 'Empacador', 'S&TA'].includes(role)) {
+            if (['Piloto', 'Instructor AFF', 'Instructor Tandem', 'Coach', 'Camara Flyer', 'Empacador', 'S&TA', 'Rigger'].includes(role)) {
                 const chks = document.querySelectorAll('.comision-chk:checked');
                 comisiones = Array.from(chks).map(c => c.value);
             }
@@ -568,6 +584,7 @@ window.Modules.hrms = {
                     emp.role = role;
                     emp.doc = doc;
                     emp.phone = phone;
+                    emp.dob = dob;
                     emp.email = email;
                     emp.licencias = licencias;
                     emp.comisiones = comisiones;
@@ -576,7 +593,7 @@ window.Modules.hrms = {
             } else {
                 window.AppData.employees.push({
                     id: 'emp_' + Date.now(),
-                    name, lastname, role, doc, phone, email, licencias, comisiones, photoUrl,
+                    name, lastname, role, doc, phone, dob, email, licencias, comisiones, photoUrl,
                     status: 'Activo'
                 });
             }

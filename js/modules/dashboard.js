@@ -259,7 +259,7 @@ window.Modules.dashboard = {
                             `).join('') : '<div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary);"><i class="fas fa-check-circle" style="font-size: 2rem; opacity: 0.5; margin-bottom: 0.5rem; display: block;"></i>No hay vuelos próximos pendientes encontrados.</div>'}
                             
                             <div style="margin-top: 1.5rem; text-align: center;">
-                                <a href="#/manifest" style="color: var(--brand-action); font-size: 0.9rem; text-decoration: none; font-weight: 600; transition: opacity 0.2s;">Ver Manifiesto Completo <i class="fas fa-arrow-right"></i></a>
+                                <a href="#/manifiesto" style="color: var(--brand-action); font-size: 0.9rem; text-decoration: none; font-weight: 600; transition: opacity 0.2s;">Ver Manifiesto Completo <i class="fas fa-arrow-right"></i></a>
                             </div>
                         </div>
                     </div>

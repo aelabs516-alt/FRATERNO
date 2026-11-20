@@ -228,6 +228,10 @@ window.Modules.b2c = {
                 </div>
 
                 <div id="form-step" style="display: none;" class="step-container">
+                    <div id="b2c-prefilled-banner" style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px solid var(--brand-success); border-left: 4px solid var(--brand-success); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; color: var(--text-primary); font-size: 0.95rem;">
+                        <i class="fas fa-check-circle" style="color: var(--brand-success); margin-right: 0.5rem;"></i>
+                        <strong>¡Información precargada!</strong> Ya encontramos tus datos diligenciados previamente en el sistema. Puedes revisar o actualizar cualquier campo sin volver a llenar todo nuevamente.
+                    </div>
                     
                     <div class="b2c-glass-card">
                         <h3 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); margin-bottom: 1.5rem;"><i class="fas fa-user-circle" style="color: var(--b2c-accent);"></i> <span data-i18n="personal_data">Datos Personales</span></h3>
@@ -243,13 +247,22 @@ window.Modules.b2c = {
                             </div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="floating-group">
+                                <select id="b2c-doc-type" style="padding-top: 1.4rem;">
+                                    <option value="Cédula de Ciudadanía (CC)">Cédula de Ciudadanía (CC)</option>
+                                    <option value="Cédula de Extranjería (CE)">Cédula de Extranjería (CE)</option>
+                                    <option value="Pasaporte">Pasaporte</option>
+                                    <option value="Tarjeta de Identidad (TI)">Tarjeta de Identidad (TI)</option>
+                                </select>
+                                <label style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Tipo de Documento</label>
+                            </div>
                             <div class="floating-group">
                                 <input type="text" id="b2c-doc-filled" placeholder=" " disabled>
                                 <label data-i18n="p_doc_label">Documento</label>
                             </div>
                             <div class="floating-group">
-                                <input type="date" class="form-control" value="2026-07-15" disabled style="padding: 1.4rem 1rem 0.6rem 1rem;">
+                                <input type="date" id="b2c-jump-date" class="form-control" disabled style="padding: 1.4rem 1rem 0.6rem 1rem;">
                                 <label data-i18n="jump_date" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Fecha de Salto</label>
                             </div>
                         </div>
@@ -330,42 +343,13 @@ window.Modules.b2c = {
                         </div>
                     </div>
 
-                    <div class="b2c-glass-card">
-                        <h3 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); margin-bottom: 0.5rem;"><i class="fas fa-file-invoice-dollar" style="color: var(--b2c-accent);"></i> <span data-i18n="payment_support">Soporte de Pago</span></h3>
-                        <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1.5rem;" data-i18n="payment_msg">
-                            Por favor, envía el comprobante de pago al WhatsApp 302 338 1129.
-                        </p>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="floating-group">
-                                <input type="date" class="form-control" style="padding: 1.4rem 1rem 0.6rem 1rem;">
-                                <label data-i18n="payment_date" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Fecha de pago</label>
-                            </div>
-                            <div class="floating-group">
-                                <select id="b2c-payment-method" class="form-control" style="padding-top: 1.4rem;">
-                                    <option value="" disabled selected></option>
-                                    <option data-i18n="pm_transfer">Transferencia Bancaria</option>
-                                    <option data-i18n="pm_credit">Tarjeta de Crédito</option>
-                                    <option>QR</option>
-                                    <option>Llave Bre-B</option>
-                                    <option>Efectivo</option>
-                                </select>
-                                <label data-i18n="payment_method" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Medio de Pago</label>
-                            </div>
-                        </div>
-                        <div class="floating-group" id="b2c-payment-file-container">
-                            <input type="file" class="form-control" accept="image/*,.pdf" style="padding: 1.4rem 1rem 0.6rem 1rem;">
-                            <label data-i18n="payment_file" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Comprobante (Imagen/PDF)</label>
-                        </div>
-                    </div>
-
                     <div class="b2c-glass-card" style="border: 2px solid var(--brand-success); background: rgba(16, 185, 129, 0.05);">
                         <h3 style="display: flex; align-items: center; gap: 0.5rem; color: var(--brand-success); margin-bottom: 0.5rem;"><i class="fas fa-users"></i> <span data-i18n="group_title">Reservas de Grupos</span></h3>
                         <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem;" data-i18n="group_desc">
                             Los registros se vinculan al correo del líder. Por logística no se garantiza el salto simultáneo con tus acompañantes.
                         </p>
                         <label class="custom-checkbox">
-                            <input type="checkbox">
+                            <input type="checkbox" id="chk-group-understood">
                             <span data-i18n="btn_understood">¡Entendido! ✅</span>
                         </label>
                     </div>
@@ -395,7 +379,7 @@ window.Modules.b2c = {
                             <i class="fas fa-exclamation-triangle"></i> <strong>Aviso Importante:</strong> Por motivos de seguridad operacional, la aceptación del vuelo estará sujeta a la revisión y aprobación de nuestro equipo especializado.
                         </div>
                         <label class="custom-checkbox">
-                            <input type="checkbox">
+                            <input type="checkbox" id="chk-medical-understood">
                             <span data-i18n="btn_understood2">¡Entendido! ✅</span>
                         </label>
                     </div>
@@ -486,6 +470,7 @@ window.Modules.b2c = {
                             <input type="file" id="selfie-file" class="form-control" accept="image/*" capture="user" style="padding: 1.4rem 1rem 0.6rem 1rem;">
                             <label style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Sube tu fotografía</label>
                         </div>
+                        <div id="selfie-saved-preview" style="display: none; margin-top: 1rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.08); border: 1px solid var(--brand-success); border-radius: 10px; text-align: center;"></div>
                     </div>
 
                     <div class="b2c-glass-card" id="minor-selfie-section" style="display: none; border-color: var(--brand-warning);">
@@ -512,7 +497,10 @@ window.Modules.b2c = {
                     </div>
 
                     <div class="b2c-glass-card" id="signature-section">
-                        <h3 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); margin-bottom: 0.5rem;"><i class="fas fa-signature" style="color: var(--b2c-accent);"></i> <span data-i18n="signature_title">Firma del Pasajero</span></h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <h3 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); margin: 0;"><i class="fas fa-signature" style="color: var(--b2c-accent);"></i> <span data-i18n="signature_title">Firma del Pasajero</span></h3>
+                            <span id="sig-saved-badge" style="display: none; background: rgba(16, 185, 129, 0.15); color: var(--brand-success); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;"><i class="fas fa-check-circle"></i> Firma ya registrada</span>
+                        </div>
                         <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem;" data-i18n="signature_desc">
                             Por favor, firma en el recuadro inferior para confirmar tu registro.
                         </p>
@@ -551,10 +539,54 @@ window.Modules.b2c = {
                             </button>
                         </div>
                     </div>
-                    
-                    <button id="btn-confirm-booking" class="b2c-btn-glow primary" style="width: 100%; padding: 1.25rem; font-size: 1.25rem; margin-top: 1rem;" disabled>
-                        <i class="fas fa-paper-plane"></i> <span data-i18n="btn_finish">Finalizar y Enviar Registro</span>
-                    </button>
+
+                    <div id="b2c-proceed-payment-wrapper" style="margin-bottom: 1.5rem;">
+                        <button type="button" id="btn-proceed-to-payment" class="b2c-btn-glow primary" style="width: 100%; padding: 1.25rem; font-size: 1.15rem;" disabled>
+                            <i class="fas fa-file-signature"></i> <span id="lbl-proceed-payment">Confirmar Aceptación Legal y Continuar a Soporte de Pago</span>
+                        </button>
+                    </div>
+
+                    <!-- Paso Final: Soporte de Pago (Oculto hasta aceptar documentos legales y firmar - Req #3 & #10) -->
+                    <div id="payment-support-step" class="b2c-glass-card step-container" style="display: none; border: 2px solid var(--brand-action);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                            <h3 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); margin: 0;">
+                                <i class="fas fa-file-invoice-dollar" style="color: var(--b2c-accent);"></i> <span data-i18n="payment_support">Soporte de Pago</span>
+                            </h3>
+                            <span style="background: rgba(16, 185, 129, 0.15); color: var(--brand-success); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+                                <i class="fas fa-check-circle"></i> Aceptación Legal y Firma Completadas
+                            </span>
+                        </div>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1.5rem;" data-i18n="payment_msg">
+                            Adjunta tu comprobante de pago para finalizar tu registro. También puedes enviarlo al WhatsApp 302 338 1129.
+                        </p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="floating-group">
+                                <input type="date" id="b2c-payment-date" class="form-control" style="padding: 1.4rem 1rem 0.6rem 1rem;">
+                                <label data-i18n="payment_date" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Fecha de pago</label>
+                            </div>
+                            <div class="floating-group">
+                                <select id="b2c-payment-method" class="form-control" style="padding-top: 1.4rem;">
+                                    <option value="" disabled selected></option>
+                                    <option value="Transferencia Bancaria" data-i18n="pm_transfer">Transferencia Bancaria</option>
+                                    <option value="Tarjeta de Crédito" data-i18n="pm_credit">Tarjeta de Crédito</option>
+                                    <option value="QR">QR</option>
+                                    <option value="Llave Bre-B">Llave Bre-B</option>
+                                    <option value="Efectivo">Efectivo</option>
+                                </select>
+                                <label data-i18n="payment_method" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Medio de Pago</label>
+                            </div>
+                        </div>
+                        <div class="floating-group" id="b2c-payment-file-container">
+                            <input type="file" id="b2c-payment-file" class="form-control" accept="image/*,.pdf" style="padding: 1.4rem 1rem 0.6rem 1rem;">
+                            <label data-i18n="payment_file" style="top: 0.5rem; font-size: 0.75rem; transform: none; font-weight: 600;">Comprobante (Imagen/PDF)</label>
+                        </div>
+                        <div id="b2c-payment-preview" style="display: none; margin-bottom: 1.25rem; padding: 0.85rem; background: var(--bg-surface-hover); border-radius: 10px; border: 1px dashed var(--brand-success); text-align: center;"></div>
+
+                        <button id="btn-confirm-booking" class="b2c-btn-glow success" style="width: 100%; padding: 1.25rem; font-size: 1.25rem; margin-top: 0.5rem;" disabled>
+                            <i class="fas fa-paper-plane"></i> <span data-i18n="btn_finish">Finalizar y Enviar Registro</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -726,14 +758,57 @@ init: () => {
             applyTranslations(e.target.value);
         });
 
-        // OTP Logic Mock
+        // OTP Logic with Reserved Passenger Verification
+        const b2cDocInput = document.getElementById('b2c-doc');
         const btnSendOTP = document.getElementById('btn-send-otp');
         const otpContainer = document.getElementById('otp-container');
         const btnVerifyOTP = document.getElementById('btn-verify-otp');
         const authStep = document.getElementById('auth-step');
         const formStep = document.getElementById('form-step');
 
+        function findReservedPassengerByDoc(rawDoc) {
+            const targetDoc = String(rawDoc || '').trim().toLowerCase();
+            if (!targetDoc) return null;
+            const passengers = (window.AppData && Array.isArray(window.AppData.passengers)) ? window.AppData.passengers : [];
+            for (let i = passengers.length - 1; i >= 0; i--) {
+                const p = passengers[i];
+                const isCancelled = (p.paxStatus && p.paxStatus.includes('Cancelado')) || (p.flightStatus && p.flightStatus.includes('Cancelado'));
+                if (!isCancelled && p.doc && String(p.doc).trim().toLowerCase() === targetDoc) {
+                    return p;
+                }
+            }
+            return null;
+        }
+
+        if (b2cDocInput) {
+            b2cDocInput.addEventListener('input', () => {
+                if (otpContainer && otpContainer.style.display === 'block') {
+                    otpContainer.style.display = 'none';
+                }
+            });
+        }
+
         btnSendOTP.addEventListener('click', () => {
+            const docVal = (b2cDocInput ? b2cDocInput.value : '').trim();
+            if (!docVal) {
+                otpContainer.style.display = 'none';
+                alert(currentLang === 'en'
+                    ? 'Please enter your ID document number before requesting the OTP code.'
+                    : 'Por favor, ingresa tu número de documento de identidad antes de solicitar el código.');
+                if (b2cDocInput) b2cDocInput.focus();
+                return;
+            }
+
+            const reservedPax = findReservedPassengerByDoc(docVal);
+            if (!reservedPax) {
+                otpContainer.style.display = 'none';
+                alert(currentLang === 'en'
+                    ? 'No active reservation was found for the entered ID document number. Token cannot be sent.'
+                    : 'No encontramos ninguna reserva activa asociada a este número de documento. No es posible enviar el código de verificación.');
+                if (b2cDocInput) b2cDocInput.focus();
+                return;
+            }
+
             otpContainer.style.display = 'block';
             btnSendOTP.textContent = translations[currentLang].btn_resend;
             btnSendOTP.classList.remove('btn-primary');
@@ -754,33 +829,171 @@ init: () => {
             });
         }
 
+        let currentVerifiedPax = null;
+        let savedLocCountry = '';
+        let savedLocState = '';
+        let savedLocCity = '';
+        let savedSigDataUrl = null;
+        let savedSigDataUrlM = null;
+        let savedSigDataUrlF = null;
+        window.agTempB2CSelfieFather = null;
+
+        function ensureSelectValue(selectEl, val) {
+            if (!selectEl || !val) return;
+            const opts = Array.from(selectEl.options || []);
+            if (!opts.some(o => o.value === val)) {
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = val;
+                selectEl.appendChild(opt);
+            }
+            selectEl.value = val;
+        }
+
+        function drawSavedSignatureOnCanvas(cvs, cx, dataUrl) {
+            if (!cvs || !cx || !dataUrl || typeof Image === 'undefined') return;
+            try {
+                const img = new Image();
+                img.onload = () => {
+                    cx.clearRect(0, 0, cvs.width, cvs.height);
+                    cx.drawImage(img, 0, 0, cvs.width, cvs.height);
+                };
+                img.src = dataUrl;
+            } catch (e) {}
+        }
+
+        function renderSavedSelfiePreview(dataUrl) {
+            const box = document.getElementById('selfie-saved-preview');
+            if (!box) return;
+            if (dataUrl) {
+                box.style.display = 'block';
+                box.innerHTML = `
+                    <div style="font-size: 0.85rem; color: var(--brand-success); font-weight: 700; margin-bottom: 0.5rem;">
+                        <i class="fas fa-check-circle"></i> Fotografía / Selfie ya registrada (no es necesario volver a subirla)
+                    </div>
+                    <img src="${dataUrl}" alt="Selfie guardada" style="max-height: 120px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border-color);">
+                `;
+            } else {
+                box.style.display = 'none';
+                box.innerHTML = '';
+            }
+        }
+
         btnVerifyOTP.addEventListener('click', () => {
+            const docInput = (b2cDocInput ? b2cDocInput.value : '').trim();
+            if (!docInput) {
+                alert(currentLang === 'en'
+                    ? 'Please enter your ID document number.'
+                    : 'Por favor, ingresa tu número de documento de identidad.');
+                if (b2cDocInput) b2cDocInput.focus();
+                return;
+            }
+
+            const found = findReservedPassengerByDoc(docInput);
+            if (!found) {
+                otpContainer.style.display = 'none';
+                alert(currentLang === 'en'
+                    ? 'No active reservation was found for the entered ID document number.'
+                    : 'No encontramos ninguna reserva activa asociada a este número de documento.');
+                if (b2cDocInput) b2cDocInput.focus();
+                return;
+            }
+
+            currentVerifiedPax = found;
             authStep.style.display = 'none';
             formStep.style.display = 'block';
             
             if (typeof resizeCanvas === 'function') resizeCanvas();
 
-            // Load profile data from AppData if exists
-            const docInput = document.getElementById('b2c-doc').value.trim();
+            // Load profile & previously entered B2C data from AppData (no diligenciar 2 veces lo mismo)
             document.getElementById('b2c-doc-filled').value = docInput;
             
-            const passengers = (window.AppData && window.AppData.passengers) ? window.AppData.passengers : [];
-            let found = null;
-            const targetDoc = String(docInput).trim().toLowerCase();
-            for (let i = passengers.length - 1; i >= 0; i--) {
-                if (passengers[i].doc && String(passengers[i].doc).trim().toLowerCase() === targetDoc) {
-                    if (passengers[i].name) {
-                        found = passengers[i];
-                        break;
+            if (found) {
+                const nameParts = (found.name || '').trim().split(/\s+/);
+                const firstName = found.lastname && found.name && found.name.endsWith(found.lastname)
+                    ? found.name.slice(0, found.name.length - found.lastname.length).trim()
+                    : (nameParts[0] || '');
+                const lastName = found.lastname || nameParts.slice(1).join(' ') || '';
+                document.getElementById('b2c-fname').value = firstName || nameParts[0] || '';
+                document.getElementById('b2c-lname').value = lastName;
+
+                const docTypeSel = document.getElementById('b2c-doc-type');
+                if (docTypeSel && found.docType) ensureSelectValue(docTypeSel, found.docType);
+
+                const jumpDateEl = document.getElementById('b2c-jump-date');
+                if (jumpDateEl) jumpDateEl.value = found.date || '';
+
+                const weightEl = document.getElementById('weight-input');
+                if (weightEl && found.weight) {
+                    weightEl.value = found.weight;
+                    weightEl.dispatchEvent(new Event('input'));
+                }
+
+                const addressEl = document.getElementById('b2c-address');
+                if (addressEl && found.address) addressEl.value = found.address;
+
+                const occEl = document.getElementById('b2c-occupation');
+                const occOtherGrp = document.getElementById('occ-other-group');
+                const occOtherEl = document.getElementById('b2c-occ-other');
+                if (occEl && found.occupation) {
+                    ensureSelectValue(occEl, found.occupation);
+                    if (found.occupation === 'Otro' && occOtherGrp) {
+                        occOtherGrp.style.display = 'block';
+                        if (occOtherEl && found.occupationOther) occOtherEl.value = found.occupationOther;
                     }
                 }
-            }
-            
-            if (found) {
-                const nameParts = (found.name || '').split(' ');
-                document.getElementById('b2c-fname').value = nameParts[0] || '';
-                document.getElementById('b2c-lname').value = nameParts.slice(1).join(' ') || found.lastname || '';
-                
+
+                const actEl = document.getElementById('b2c-activities');
+                if (actEl && found.favActivities) actEl.value = found.favActivities;
+
+                const cmEl = document.getElementById('contact-method');
+                const advCont = document.getElementById('asesor-container');
+                const advEl = document.getElementById('b2c-advisor');
+                if (cmEl && found.contactMethod) {
+                    ensureSelectValue(cmEl, found.contactMethod);
+                    if (found.contactMethod === 'asesor' && advCont) {
+                        advCont.style.display = 'block';
+                        if (advEl && found.advisor) ensureSelectValue(advEl, found.advisor);
+                    }
+                }
+
+                // Ubicación guardada (País / Estado / Ciudad)
+                savedLocCountry = found.country || '';
+                savedLocState = found.state || '';
+                savedLocCity = found.city || '';
+                if (savedLocCountry && selCountry) {
+                    ensureSelectValue(selCountry, savedLocCountry);
+                    selCountry.dispatchEvent(new Event('change'));
+                }
+                if (savedLocState && selState) {
+                    ensureSelectValue(selState, savedLocState);
+                }
+                if (savedLocCity && selCity) {
+                    ensureSelectValue(selCity, savedLocCity);
+                }
+
+                // Reservas de grupo y Condiciones médicas
+                const chkGroup = document.getElementById('chk-group-understood');
+                if (chkGroup && (found.groupUnderstood || found.b2cCompleted)) chkGroup.checked = true;
+
+                const medNone = document.getElementById('medical-none');
+                const medReport = document.getElementById('medical-report');
+                const medGroup = document.getElementById('medical-text-group');
+                const medWarn = document.getElementById('medical-warning');
+                const medText = document.getElementById('b2c-medical');
+                const chkMed = document.getElementById('chk-medical-understood');
+                if (found.medicalCondition && found.medicalCondition !== 'Ninguna') {
+                    if (medReport) medReport.checked = true;
+                    if (medNone) medNone.checked = false;
+                    if (medGroup) medGroup.style.display = 'block';
+                    if (medWarn) medWarn.style.display = 'block';
+                    if (medText) medText.value = found.medicalCondition;
+                } else {
+                    if (medNone) medNone.checked = true;
+                    if (medReport) medReport.checked = false;
+                }
+                if (chkMed && (found.medicalUnderstood || found.b2cCompleted)) chkMed.checked = true;
+
                 const phoneInput = document.getElementById('b2c-phone');
                 if (phoneInput && found.phone) phoneInput.value = found.phone;
                 
@@ -808,6 +1021,78 @@ init: () => {
                         document.getElementById('minor-selfie-section').style.display = 'none';
                         document.getElementById('minor-signature-section').style.display = 'none';
                     }
+                }
+
+                // Precargar documentos legales aceptados, selfie, firma y soporte de pago si ya fueron diligenciados
+                const alreadyFilled = Boolean(found.b2cCompleted || found.waiverSigned || found.address || found.occupation || found.paymentSupport);
+                const prefilledBanner = document.getElementById('b2c-prefilled-banner');
+                if (prefilledBanner) prefilledBanner.style.display = alreadyFilled ? 'block' : 'none';
+
+                if (found.waiverSigned || found.legalDocsAccepted) {
+                    const acc = found.legalDocsAccepted || {};
+                    if (document.getElementById('chk-bienvenida')) document.getElementById('chk-bienvenida').checked = Boolean(acc.bienvenida || found.waiverSigned);
+                    if (document.getElementById('chk-terminos')) document.getElementById('chk-terminos').checked = Boolean(acc.terminos || found.waiverSigned);
+                    if (document.getElementById('chk-ficha')) document.getElementById('chk-ficha').checked = Boolean(acc.ficha || found.waiverSigned);
+                    if (document.getElementById('chk-exo')) document.getElementById('chk-exo').checked = Boolean(acc.exoneracion || found.waiverSigned);
+                }
+
+                if (found.selfie) {
+                    window.agTempB2CSelfie = found.selfie;
+                    renderSavedSelfiePreview(found.selfie);
+                }
+                if (found.selfieFather) {
+                    window.agTempB2CSelfieFather = found.selfieFather;
+                }
+
+                if (isMinorFlow && found.signatureMinor) {
+                    if (found.signatureMinor.mother) {
+                        savedSigDataUrlM = found.signatureMinor.mother;
+                        isCanvasSignedM = true;
+                        drawSavedSignatureOnCanvas(canvasM, ctxM, savedSigDataUrlM);
+                    }
+                    if (found.signatureMinor.father) {
+                        savedSigDataUrlF = found.signatureMinor.father;
+                        isCanvasSignedF = true;
+                        drawSavedSignatureOnCanvas(canvasF, ctxF, savedSigDataUrlF);
+                    }
+                } else if (found.signature) {
+                    savedSigDataUrl = found.signature;
+                    isCanvasSigned = true;
+                    drawSavedSignatureOnCanvas(canvas, ctx, savedSigDataUrl);
+                    const sigBadge = document.getElementById('sig-saved-badge');
+                    if (sigBadge) sigBadge.style.display = 'inline-flex';
+                }
+
+                if (found.paymentSupport && found.paymentSupport.dataUrl) {
+                    const ps = found.paymentSupport;
+                    b2cPaymentFileDataUrl = ps.dataUrl;
+                    b2cPaymentFileName = ps.fileName || 'comprobante_b2c.png';
+                    b2cPaymentFileType = ps.fileType || '';
+                    if (paymentDateInput && ps.paymentDate) paymentDateInput.value = ps.paymentDate;
+                    if (pmSelect && ps.paymentMethod) {
+                        ensureSelectValue(pmSelect, ps.paymentMethod);
+                        pmSelect.dispatchEvent(new Event('change'));
+                    }
+                    if (paymentPreviewDiv) {
+                        const safeFn = window.escapeHTML ? window.escapeHTML(b2cPaymentFileName) : b2cPaymentFileName;
+                        paymentPreviewDiv.style.display = 'block';
+                        if (b2cPaymentFileDataUrl.startsWith('data:image')) {
+                            paymentPreviewDiv.innerHTML = `
+                                <div style="font-size: 0.85rem; color: var(--brand-success); font-weight: 700; margin-bottom: 0.5rem;"><i class="fas fa-check-circle"></i> Soporte ya registrado: ${safeFn}</div>
+                                <img src="${b2cPaymentFileDataUrl}" style="max-height: 160px; max-width: 100%; border-radius: 8px; object-fit: contain;">
+                            `;
+                        } else {
+                            paymentPreviewDiv.innerHTML = `
+                                <div style="font-size: 0.9rem; color: var(--brand-success); font-weight: 700;"><i class="fas fa-file-pdf"></i> Documento PDF ya registrado: ${safeFn}</div>
+                            `;
+                        }
+                    }
+                }
+
+                if (typeof checkFormValid === 'function') checkFormValid();
+                if (typeof isLegalAndSignatureComplete === 'function' && isLegalAndSignatureComplete()) {
+                    const paymentStep = document.getElementById('payment-support-step');
+                    if (paymentStep) paymentStep.style.display = 'block';
                 }
             } else {
                 document.getElementById('b2c-fname').value = '';
@@ -857,7 +1142,7 @@ init: () => {
                         });
                         
                         window.worldDataCache = data;
-                        selCountry.value = 'Colombia';
+                        selCountry.value = savedLocCountry || 'Colombia';
                         selCountry.dispatchEvent(new Event('change'));
                     }
                 })
@@ -865,6 +1150,9 @@ init: () => {
                     selCountry.innerHTML = '<option value="Colombia">Colombia</option>';
                     selState.innerHTML = '<option value="Cundinamarca">Cundinamarca</option>';
                     selCity.innerHTML = '<option value="Bogotá">Bogotá</option>';
+                    if (savedLocCountry) ensureSelectValue(selCountry, savedLocCountry);
+                    if (savedLocState) ensureSelectValue(selState, savedLocState);
+                    if (savedLocCity) ensureSelectValue(selCity, savedLocCity);
                 });
 
             selCountry.addEventListener('change', () => {
@@ -881,7 +1169,11 @@ init: () => {
                             opt.textContent = s.name.replace(/ Department/gi, '');
                             selState.appendChild(opt);
                         });
-                        selState.selectedIndex = 0;
+                        if (savedLocState) {
+                            ensureSelectValue(selState, savedLocState);
+                        } else {
+                            selState.selectedIndex = 0;
+                        }
                         selState.dispatchEvent(new Event('change'));
                     } else {
                         selState.innerHTML = '<option value="N/A">N/A</option>';
@@ -911,12 +1203,15 @@ init: () => {
                             opt.textContent = city;
                             selCity.appendChild(opt);
                         });
+                        if (savedLocCity) ensureSelectValue(selCity, savedLocCity);
                     } else {
                         selCity.innerHTML = '<option value="N/A">N/A</option>';
+                        if (savedLocCity) ensureSelectValue(selCity, savedLocCity);
                     }
                 })
                 .catch(err => {
                     selCity.innerHTML = '<option value="N/A">N/A</option>';
+                    if (savedLocCity) ensureSelectValue(selCity, savedLocCity);
                 });
             });
         }
@@ -968,94 +1263,277 @@ init: () => {
         let isCanvasSignedM = false;
         let isCanvasSignedF = false;
 
-          ['bienvenida', 'terminos', 'ficha', 'exo'].forEach((docId, index) => {
-              const btn = document.getElementById('btn-dl-' + docId);
-              if (btn) {
-                  btn.addEventListener('click', (e) => {
-                      e.preventDefault();
-                      const link = document.createElement('a');
-                      const suffix = currentLang === 'en' ? '_EN' : '';
-                        let filename = '';
-                        if (index === 0) filename = '1_bienvenida' + suffix + '.pdf';
-                        else if (index === 1) filename = '2_terminos_condiciones' + suffix + '.pdf';
-                        else if (index === 2) filename = '3_ficha_informacion' + suffix + '.pdf';
-                        else if (index === 3) filename = '4_exoneracion' + suffix + '.pdf';
-                      
-                      let docKey = index === 0 ? 'bienvenida' : (index === 1 ? 'terminos' : (index === 2 ? 'ficha' : 'exoneracion'));
-                        link.href = getDocPath(docKey, 'assets/docs/' + filename);
-                        link.download = filename;
-                        link.click();
-                  });
-              }
-          });
-          
-function checkFormValid() {
-              const c1 = document.getElementById('chk-bienvenida') ? document.getElementById('chk-bienvenida').checked : false;
-              const c2 = document.getElementById('chk-terminos') ? document.getElementById('chk-terminos').checked : false;
-              const c3 = document.getElementById('chk-ficha') ? document.getElementById('chk-ficha').checked : false;
-              const c4 = document.getElementById('chk-exo') ? document.getElementById('chk-exo').checked : false;
-              
-              const btn = document.getElementById('btn-confirm-booking');
-              if (btn) {
-                  if (isMinorFlow) {
-                      const selfieM = document.getElementById('selfie-file-mother');
-                      const selfieF = document.getElementById('selfie-file-father');
-                      const hasSelfieM = selfieM && selfieM.files && selfieM.files.length > 0;
-                      const hasSelfieF = selfieF && selfieF.files && selfieF.files.length > 0;
-                      if (isSingleTutor) {
-                          btn.disabled = !(c1 && c2 && c3 && c4 && hasSelfieM && isCanvasSignedM);
-                      } else {
-                          btn.disabled = !(c1 && c2 && c3 && c4 && hasSelfieM && hasSelfieF && isCanvasSignedM && isCanvasSignedF);
-                      }
-                  } else {
-                      const selfieInput = document.getElementById('selfie-file');
-                      const hasSelfie = selfieInput && selfieInput.files && selfieInput.files.length > 0;
-                      btn.disabled = !(c1 && c2 && c3 && c4 && hasSelfie && isCanvasSigned);
-                  }
-              }
-          }
-          
-          let isSingleTutor = false;
-          const chkSingle = document.getElementById('chk-single-tutor');
-          if (chkSingle) {
-              chkSingle.addEventListener('change', (e) => {
-                  isSingleTutor = e.target.checked;
-                  document.getElementById('group-selfie-father').style.display = isSingleTutor ? 'none' : 'block';
-                  document.getElementById('group-sig-father').style.display = isSingleTutor ? 'none' : 'block';
-                  if(isSingleTutor) document.getElementById('minor-selfie-grid').style.gridTemplateColumns = '1fr';
-                  else document.getElementById('minor-selfie-grid').style.gridTemplateColumns = '1fr 1fr';
-                  checkFormValid();
-              });
-          }
+        let b2cPaymentFileDataUrl = null;
+        let b2cPaymentFileName = '';
+        let b2cPaymentFileType = '';
+        window.agTempB2CSelfie = null;
 
-          ['chk-bienvenida', 'chk-terminos', 'chk-ficha', 'chk-exo'].forEach(id => {
-              const el = document.getElementById(id);
-              if (el) el.addEventListener('change', checkFormValid);
-          });
-          const selfieEl = document.getElementById('selfie-file');
-          if (selfieEl) selfieEl.addEventListener('change', checkFormValid);
-          const selfieMEl = document.getElementById('selfie-file-mother');
-          if (selfieMEl) selfieMEl.addEventListener('change', checkFormValid);
-          const selfieFEl = document.getElementById('selfie-file-father');
-          if (selfieFEl) selfieFEl.addEventListener('change', checkFormValid);
+        const paymentDateInput = document.getElementById('b2c-payment-date');
+        if (paymentDateInput && !paymentDateInput.value) {
+            paymentDateInput.value = new Date().toLocaleDateString('en-CA');
+        }
+
+        function compressImageDataUrl(dataUrl, maxDim = 1000, quality = 0.75) {
+            return new Promise((resolve) => {
+                if (!dataUrl || !dataUrl.startsWith('data:image') || typeof Image === 'undefined') {
+                    return resolve(dataUrl);
+                }
+                try {
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            let { width, height } = img;
+                            if (width > maxDim || height > maxDim) {
+                                if (width > height) {
+                                    height = Math.round((height * maxDim) / width);
+                                    width = maxDim;
+                                } else {
+                                    width = Math.round((width * maxDim) / height);
+                                    height = maxDim;
+                                }
+                            }
+                            const c = document.createElement('canvas');
+                            c.width = width;
+                            c.height = height;
+                            const cCtx = c.getContext('2d');
+                            if (!cCtx) return resolve(dataUrl);
+                            cCtx.fillStyle = '#ffffff';
+                            cCtx.fillRect(0, 0, width, height);
+                            cCtx.drawImage(img, 0, 0, width, height);
+                            const compressed = c.toDataURL('image/jpeg', quality);
+                            resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+                        } catch (e) {
+                            resolve(dataUrl);
+                        }
+                    };
+                    img.onerror = () => resolve(dataUrl);
+                    img.src = dataUrl;
+                } catch (e) {
+                    resolve(dataUrl);
+                }
+            });
+        }
+
+        const paymentFileInput = document.getElementById('b2c-payment-file');
+        const paymentPreviewDiv = document.getElementById('b2c-payment-preview');
+        if (paymentFileInput) {
+            paymentFileInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) {
+                    b2cPaymentFileDataUrl = null;
+                    b2cPaymentFileName = '';
+                    b2cPaymentFileType = '';
+                    if (paymentPreviewDiv) paymentPreviewDiv.style.display = 'none';
+                    return;
+                }
+                b2cPaymentFileName = file.name;
+                b2cPaymentFileType = file.type || '';
+                const safeFileName = window.escapeHTML ? window.escapeHTML(file.name) : file.name;
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const rawDataUrl = ev.target.result;
+                    b2cPaymentFileDataUrl = rawDataUrl.startsWith('data:image')
+                        ? await compressImageDataUrl(rawDataUrl, 1200, 0.78)
+                        : rawDataUrl;
+                    if (paymentPreviewDiv) {
+                        paymentPreviewDiv.style.display = 'block';
+                        if (b2cPaymentFileDataUrl.startsWith('data:image')) {
+                            paymentPreviewDiv.innerHTML = `
+                                <div style="font-size: 0.85rem; color: var(--brand-success); font-weight: 700; margin-bottom: 0.5rem;"><i class="fas fa-check-circle"></i> Soporte cargado: ${safeFileName}</div>
+                                <img src="${b2cPaymentFileDataUrl}" style="max-height: 160px; max-width: 100%; border-radius: 8px; object-fit: contain;">
+                            `;
+                        } else {
+                            paymentPreviewDiv.innerHTML = `
+                                <div style="font-size: 0.9rem; color: var(--brand-success); font-weight: 700;"><i class="fas fa-file-pdf"></i> Documento PDF cargado: ${safeFileName}</div>
+                            `;
+                        }
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function readSelfieToTemp(inputEl, targetKey = 'main') {
+            if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const compressed = await compressImageDataUrl(ev.target.result, 700, 0.72);
+                if (targetKey === 'father') {
+                    window.agTempB2CSelfieFather = compressed;
+                } else {
+                    window.agTempB2CSelfie = compressed;
+                    renderSavedSelfiePreview(compressed);
+                }
+            };
+            reader.readAsDataURL(inputEl.files[0]);
+        }
+
+        function buildCurrentPaxPdfPayload(signedAtOverride) {
+            const base = currentVerifiedPax || {};
+            const fName = document.getElementById('b2c-fname')?.value || '';
+            const lName = document.getElementById('b2c-lname')?.value || '';
+            const docNum = document.getElementById('b2c-doc-filled')?.value || base.doc || '';
+            const docTypeVal = document.getElementById('b2c-doc-type')?.value || base.docType || 'Cédula de Ciudadanía (CC)';
+            const jumpDateVal = document.getElementById('b2c-jump-date')?.value || base.date || '';
+            const weightVal = document.getElementById('weight-input')?.value || base.weight || '';
+            const countryVal = document.getElementById('loc-country')?.value || base.country || '';
+            const stateVal = document.getElementById('loc-state')?.value || base.state || '';
+            const cityVal = document.getElementById('loc-city')?.value || base.city || '';
+            const addressVal = document.getElementById('b2c-address')?.value?.trim() || base.address || '';
+            const occVal = document.getElementById('b2c-occupation')?.value || base.occupation || '';
+            const occOtherVal = document.getElementById('b2c-occ-other')?.value?.trim() || base.occupationOther || '';
+            const favActVal = document.getElementById('b2c-activities')?.value?.trim() || base.favActivities || '';
+            const contactVal = document.getElementById('contact-method')?.value || base.contactMethod || '';
+            const advisorVal = document.getElementById('b2c-advisor')?.value || base.advisor || '';
+            const medRep = document.getElementById('medical-report');
+            const medTxt = document.getElementById('b2c-medical');
+            const medVal = (medRep && medRep.checked && medTxt && medTxt.value.trim()) ? medTxt.value.trim() : 'Ninguna';
+
+            const sigMain = isCanvasSigned ? (savedSigDataUrl || canvas.toDataURL('image/png')) : null;
+            const sigMin = isMinorFlow ? {
+                mother: isCanvasSignedM ? (savedSigDataUrlM || canvasM.toDataURL('image/png')) : null,
+                father: (!isSingleTutor && isCanvasSignedF) ? (savedSigDataUrlF || canvasF.toDataURL('image/png')) : null
+            } : null;
+
+            return {
+                ...base,
+                name: `${fName} ${lName}`.trim() || base.name || 'Participante',
+                lastname: lName || base.lastname || '',
+                docType: docTypeVal,
+                doc: docNum,
+                date: jumpDateVal,
+                dob: base.dob || '',
+                phone: document.getElementById('b2c-phone')?.value || base.phone || '',
+                email: document.getElementById('b2c-email')?.value || base.email || '',
+                type: base.type || 'Salto Tandem',
+                cams: base.cams || 'Ninguna',
+                weight: weightVal,
+                country: countryVal,
+                state: stateVal ? stateVal.replace(/ Department/gi, '') : '',
+                city: cityVal,
+                address: addressVal,
+                occupation: occVal,
+                occupationOther: occOtherVal,
+                favActivities: favActVal,
+                contactMethod: contactVal,
+                advisor: advisorVal,
+                medicalCondition: medVal,
+                signature: isMinorFlow ? (sigMin ? sigMin.mother : null) : sigMain,
+                signatureMinor: sigMin,
+                signedAt: signedAtOverride || base.signedAt || new Date().toLocaleString('es-CO')
+            };
+        }
+
+        ['bienvenida', 'terminos', 'ficha', 'exo'].forEach((docId, index) => {
+            const btn = document.getElementById('btn-dl-' + docId);
+            if (btn) {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const docKey = index === 0 ? 'bienvenida' : (index === 1 ? 'terminos' : (index === 2 ? 'ficha' : 'exoneracion'));
+                    if (window.LegalDocsHelper) {
+                        window.LegalDocsHelper.downloadSingleDocPdf(docKey, buildCurrentPaxPdfPayload(), currentLang);
+                    }
+                });
+            }
+        });
+
+        function isLegalAndSignatureComplete() {
+            const c1 = document.getElementById('chk-bienvenida') ? document.getElementById('chk-bienvenida').checked : false;
+            const c2 = document.getElementById('chk-terminos') ? document.getElementById('chk-terminos').checked : false;
+            const c3 = document.getElementById('chk-ficha') ? document.getElementById('chk-ficha').checked : false;
+            const c4 = document.getElementById('chk-exo') ? document.getElementById('chk-exo').checked : false;
+
+            if (isMinorFlow) {
+                const selfieM = document.getElementById('selfie-file-mother');
+                const selfieF = document.getElementById('selfie-file-father');
+                const hasSelfieM = Boolean((selfieM && selfieM.files && selfieM.files.length > 0) || window.agTempB2CSelfie);
+                const hasSelfieF = Boolean((selfieF && selfieF.files && selfieF.files.length > 0) || window.agTempB2CSelfieFather);
+                if (isSingleTutor) {
+                    return Boolean(c1 && c2 && c3 && c4 && hasSelfieM && isCanvasSignedM);
+                } else {
+                    return Boolean(c1 && c2 && c3 && c4 && hasSelfieM && hasSelfieF && isCanvasSignedM && isCanvasSignedF);
+                }
+            } else {
+                const selfieInput = document.getElementById('selfie-file');
+                const hasSelfie = Boolean((selfieInput && selfieInput.files && selfieInput.files.length > 0) || window.agTempB2CSelfie);
+                return Boolean(c1 && c2 && c3 && c4 && hasSelfie && isCanvasSigned);
+            }
+        }
+
+        function checkFormValid() {
+            const legalValid = isLegalAndSignatureComplete();
+            const btnProceed = document.getElementById('btn-proceed-to-payment');
+            const btnConfirm = document.getElementById('btn-confirm-booking');
+            const paymentStep = document.getElementById('payment-support-step');
+
+            if (btnProceed) {
+                btnProceed.disabled = !legalValid;
+            }
+            if (btnConfirm) {
+                btnConfirm.disabled = !legalValid;
+            }
+            if (!legalValid && paymentStep) {
+                paymentStep.style.display = 'none';
+            }
+        }
+
+        const btnProceedPayment = document.getElementById('btn-proceed-to-payment');
+        if (btnProceedPayment) {
+            btnProceedPayment.addEventListener('click', () => {
+                if (!isLegalAndSignatureComplete()) {
+                    return alert(currentLang === 'es'
+                        ? 'Debes aceptar todos los documentos legales, adjuntar la selfie de seguridad y realizar la firma antes de continuar al soporte de pago.'
+                        : 'You must accept all legal documents, upload the security selfie, and sign before proceeding to payment support.');
+                }
+                const paymentStep = document.getElementById('payment-support-step');
+                if (paymentStep) {
+                    paymentStep.style.display = 'block';
+                    setTimeout(() => {
+                        paymentStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 80);
+                }
+            });
+        }
+
+        let isSingleTutor = false;
+        const chkSingle = document.getElementById('chk-single-tutor');
+        if (chkSingle) {
+            chkSingle.addEventListener('change', (e) => {
+                isSingleTutor = e.target.checked;
+                document.getElementById('group-selfie-father').style.display = isSingleTutor ? 'none' : 'block';
+                document.getElementById('group-sig-father').style.display = isSingleTutor ? 'none' : 'block';
+                if (isSingleTutor) document.getElementById('minor-selfie-grid').style.gridTemplateColumns = '1fr';
+                else document.getElementById('minor-selfie-grid').style.gridTemplateColumns = '1fr 1fr';
+                checkFormValid();
+            });
+        }
+
+        ['chk-bienvenida', 'chk-terminos', 'chk-ficha', 'chk-exo'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', checkFormValid);
+        });
+        const selfieEl = document.getElementById('selfie-file');
+        if (selfieEl) selfieEl.addEventListener('change', () => { readSelfieToTemp(selfieEl); checkFormValid(); });
+        const selfieMEl = document.getElementById('selfie-file-mother');
+        if (selfieMEl) selfieMEl.addEventListener('change', () => { readSelfieToTemp(selfieMEl); checkFormValid(); });
+        const selfieFEl = document.getElementById('selfie-file-father');
+        if (selfieFEl) selfieFEl.addEventListener('change', () => { readSelfieToTemp(selfieFEl, 'father'); checkFormValid(); });
         
         function resizeCanvas() {
-            if(canvas && canvas.parentElement) {
+            if (canvas && canvas.parentElement) {
                 const rect = canvas.parentElement.getBoundingClientRect();
-                canvas.width = rect.width; canvas.height = 200;
+                canvas.width = rect.width || 500; canvas.height = 200;
             }
-            if(canvasM && canvasM.parentElement) {
+            if (canvasM && canvasM.parentElement) {
                 const rect = canvasM.parentElement.getBoundingClientRect();
-                canvasM.width = rect.width; canvasM.height = 200;
+                canvasM.width = rect.width || 500; canvasM.height = 200;
             }
-            if(canvasF && canvasF.parentElement) {
+            if (canvasF && canvasF.parentElement) {
                 const rect = canvasF.parentElement.getBoundingClientRect();
-                canvasF.width = rect.width; canvasF.height = 200;
+                canvasF.width = rect.width || 500; canvasF.height = 200;
             }
         }
         window.addEventListener('resize', resizeCanvas);
-
-
 
         function getPosFor(e, cvs) {
             const rect = cvs.getBoundingClientRect();
@@ -1069,28 +1547,27 @@ function checkFormValid() {
         }
 
         function setupCanvas(cvs, cx, drawState, signStateCb) {
-            if(!cvs) return;
+            if (!cvs) return;
             let dState = false;
-            function startD(e) { dState=true; signStateCb(true); checkFormValid(); const p=getPosFor(e,cvs); cx.beginPath(); cx.moveTo(p.x,p.y); }
-            function drawD(e) { if(!dState) return; e.preventDefault(); const p=getPosFor(e,cvs); cx.lineTo(p.x,p.y); cx.strokeStyle='#000'; cx.lineWidth=2; cx.stroke(); }
-            function stopD() { dState=false; }
+            function startD(e) { dState = true; signStateCb(true); checkFormValid(); const p = getPosFor(e, cvs); cx.beginPath(); cx.moveTo(p.x, p.y); }
+            function drawD(e) { if (!dState) return; e.preventDefault(); const p = getPosFor(e, cvs); cx.lineTo(p.x, p.y); cx.strokeStyle = '#000'; cx.lineWidth = 2; cx.stroke(); }
+            function stopD() { dState = false; }
             cvs.addEventListener('mousedown', startD); cvs.addEventListener('mousemove', drawD); cvs.addEventListener('mouseup', stopD); cvs.addEventListener('mouseout', stopD);
-            cvs.addEventListener('touchstart', startD, {passive: false}); cvs.addEventListener('touchmove', drawD, {passive: false}); cvs.addEventListener('touchend', stopD);
+            cvs.addEventListener('touchstart', startD, { passive: false }); cvs.addEventListener('touchmove', drawD, { passive: false }); cvs.addEventListener('touchend', stopD);
         }
         
-        setupCanvas(canvas, ctx, isDrawing, (v)=>isCanvasSigned=v);
-        setupCanvas(canvasM, ctxM, isDrawingM, (v)=>isCanvasSignedM=v);
-        setupCanvas(canvasF, ctxF, isDrawingF, (v)=>isCanvasSignedF=v);
+        setupCanvas(canvas, ctx, isDrawing, (v) => { isCanvasSigned = v; if (v) savedSigDataUrl = null; });
+        setupCanvas(canvasM, ctxM, isDrawingM, (v) => { isCanvasSignedM = v; if (v) savedSigDataUrlM = null; });
+        setupCanvas(canvasF, ctxF, isDrawingF, (v) => { isCanvasSignedF = v; if (v) savedSigDataUrlF = null; });
 
-        if(document.getElementById('btn-clear-sig')) document.getElementById('btn-clear-sig').addEventListener('click', () => { ctx.clearRect(0,0,canvas.width,canvas.height); isCanvasSigned=false; checkFormValid(); });
-        if(document.getElementById('btn-clear-sig-mother')) document.getElementById('btn-clear-sig-mother').addEventListener('click', () => { ctxM.clearRect(0,0,canvasM.width,canvasM.height); isCanvasSignedM=false; checkFormValid(); });
-        if(document.getElementById('btn-clear-sig-father')) document.getElementById('btn-clear-sig-father').addEventListener('click', () => { ctxF.clearRect(0,0,canvasF.width,canvasF.height); isCanvasSignedF=false; checkFormValid(); });
+        if (document.getElementById('btn-clear-sig')) document.getElementById('btn-clear-sig').addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); isCanvasSigned = false; savedSigDataUrl = null; const b = document.getElementById('sig-saved-badge'); if (b) b.style.display = 'none'; checkFormValid(); });
+        if (document.getElementById('btn-clear-sig-mother')) document.getElementById('btn-clear-sig-mother').addEventListener('click', () => { ctxM.clearRect(0, 0, canvasM.width, canvasM.height); isCanvasSignedM = false; savedSigDataUrlM = null; checkFormValid(); });
+        if (document.getElementById('btn-clear-sig-father')) document.getElementById('btn-clear-sig-father').addEventListener('click', () => { ctxF.clearRect(0, 0, canvasF.width, canvasF.height); isCanvasSignedF = false; savedSigDataUrlF = null; checkFormValid(); });
 
-        // Save signature on finish
-        const btnFinish = document.querySelector('[data-i18n="btn_finish"]').parentElement;
+        // Save signature & all B2C data on finish, and deliver 4-in-1 Consolidated PDF
+        const btnFinish = document.getElementById('btn-confirm-booking');
         if (btnFinish) {
             btnFinish.addEventListener('click', async () => {
-                
                 // Validate checkboxes and signature
                 const c1 = document.getElementById('chk-bienvenida') ? document.getElementById('chk-bienvenida').checked : false;
                 const c2 = document.getElementById('chk-terminos') ? document.getElementById('chk-terminos').checked : false;
@@ -1108,46 +1585,70 @@ function checkFormValid() {
                 if (isMinorFlow) {
                     const selfieM = document.getElementById('selfie-file-mother');
                     const selfieF = document.getElementById('selfie-file-father');
+                    const hasSelfieM = Boolean((selfieM && selfieM.files && selfieM.files.length > 0) || window.agTempB2CSelfie);
+                    const hasSelfieF = Boolean((selfieF && selfieF.files && selfieF.files.length > 0) || window.agTempB2CSelfieFather);
                     if (isSingleTutor) {
-                        if (!(selfieM && selfieM.files && selfieM.files.length > 0)) {
+                        if (!hasSelfieM) {
                             return alert(currentLang === 'es' ? 'Falta foto de seguridad del tutor.' : 'Missing security photo.');
                         }
                         if (!isCanvasSignedM) {
                             return alert(currentLang === 'es' ? 'Falta la firma del tutor.' : 'Missing signature.');
                         }
-                        sigDataUrlM = canvasM.toDataURL('image/png');
+                        sigDataUrlM = savedSigDataUrlM || canvasM.toDataURL('image/png');
                     } else {
-                        if (!(selfieM && selfieM.files && selfieM.files.length > 0) || !(selfieF && selfieF.files && selfieF.files.length > 0)) {
+                        if (!hasSelfieM || !hasSelfieF) {
                             return alert(currentLang === 'es' ? 'Faltan fotos de seguridad.' : 'Missing security photos.');
                         }
                         if (!isCanvasSignedM || !isCanvasSignedF) {
                             return alert(currentLang === 'es' ? 'Faltan las firmas de los tutores.' : 'Missing signatures.');
                         }
-                        sigDataUrlM = canvasM.toDataURL('image/png');
-                        sigDataUrlF = canvasF.toDataURL('image/png');
+                        sigDataUrlM = savedSigDataUrlM || canvasM.toDataURL('image/png');
+                        sigDataUrlF = savedSigDataUrlF || canvasF.toDataURL('image/png');
                     }
                 } else {
                     const selfieInput = document.getElementById('selfie-file');
-                    if (!(selfieInput && selfieInput.files && selfieInput.files.length > 0)) {
+                    const hasSelfie = Boolean((selfieInput && selfieInput.files && selfieInput.files.length > 0) || window.agTempB2CSelfie);
+                    if (!hasSelfie) {
                         return alert(currentLang === 'es' ? 'Falta foto / selfie de seguridad.' : 'Security photo / selfie is missing.');
                     }
                     if (!isCanvasSigned) {
                         return alert(currentLang === 'es' ? 'Falta firmar.' : 'Signature is missing.');
                     }
-                    sigDataUrl = canvas.toDataURL('image/png');
+                    sigDataUrl = savedSigDataUrl || canvas.toDataURL('image/png');
+                }
+
+                // Validate Payment Support Step
+                const payDateVal = document.getElementById('b2c-payment-date')?.value || new Date().toLocaleDateString('en-CA');
+                const payMethodVal = document.getElementById('b2c-payment-method')?.value || 'Transferencia Bancaria';
+                if (payMethodVal !== 'Efectivo' && !b2cPaymentFileDataUrl) {
+                    return alert(currentLang === 'es'
+                        ? 'Por favor adjunta el comprobante / soporte de pago para finalizar el registro.'
+                        : 'Please attach the payment receipt / support to finish your registration.');
                 }
                 
-                // Get data
+                // Get all B2C form data
                 const fName = document.getElementById('b2c-fname') ? document.getElementById('b2c-fname').value : '';
                 const lName = document.getElementById('b2c-lname') ? document.getElementById('b2c-lname').value : '';
                 const doc = document.getElementById('b2c-doc-filled') ? document.getElementById('b2c-doc-filled').value : '';
+                const docTypeVal = document.getElementById('b2c-doc-type') ? document.getElementById('b2c-doc-type').value : 'Cédula de Ciudadanía (CC)';
                 const weight = document.getElementById('weight-input') ? document.getElementById('weight-input').value : 0;
                 const phone = document.getElementById('b2c-phone') ? document.getElementById('b2c-phone').value : '';
                 const email = document.getElementById('b2c-email') ? document.getElementById('b2c-email').value : '';
+                const countryVal = document.getElementById('loc-country') ? document.getElementById('loc-country').value : '';
+                const stateVal = document.getElementById('loc-state') ? document.getElementById('loc-state').value : '';
+                const cityVal = document.getElementById('loc-city') ? document.getElementById('loc-city').value : '';
+                const addressVal = document.getElementById('b2c-address') ? document.getElementById('b2c-address').value.trim() : '';
+                const occVal = document.getElementById('b2c-occupation') ? document.getElementById('b2c-occupation').value : '';
+                const occOtherVal = document.getElementById('b2c-occ-other') ? document.getElementById('b2c-occ-other').value.trim() : '';
+                const favActVal = document.getElementById('b2c-activities') ? document.getElementById('b2c-activities').value.trim() : '';
+                const contactVal = document.getElementById('contact-method') ? document.getElementById('contact-method').value : '';
+                const advisorVal = document.getElementById('b2c-advisor') ? document.getElementById('b2c-advisor').value : '';
+                const groupUnderstoodVal = document.getElementById('chk-group-understood') ? document.getElementById('chk-group-understood').checked : false;
+                const medicalUnderstoodVal = document.getElementById('chk-medical-understood') ? document.getElementById('chk-medical-understood').checked : false;
                 
                 const medReportOpt = document.getElementById('medical-report');
                 const medTextOpt = document.getElementById('b2c-medical');
-                const medicalValue = (medReportOpt && medReportOpt.checked && medTextOpt) ? medTextOpt.value.trim() : 'Ninguna';
+                const medicalValue = (medReportOpt && medReportOpt.checked && medTextOpt && medTextOpt.value.trim()) ? medTextOpt.value.trim() : 'Ninguna';
                 
                 if (!fName || !doc) {
                     return alert(currentLang === 'es' ? 'Faltan datos personales.' : 'Missing personal data.');
@@ -1155,68 +1656,41 @@ function checkFormValid() {
 
                 // Show loading
                 btnFinish.disabled = true;
-                btnFinish.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando Documentos...';
+                btnFinish.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando Documentos Consolidados...';
 
                 try {
-                    // Generate dynamic PDF with jsPDF
-                    const { jsPDF } = window.jspdf;
-                    const docPdf = new jsPDF();
-                    
-                    docPdf.setFontSize(14);
-                    docPdf.setTextColor(0, 0, 0);
-                    docPdf.text(currentLang === 'es' ? "4. Exoneración de Responsabilidad" : "4. Liability Waiver", 105, 20, { align: "center" });
-                    
-                    docPdf.setFontSize(10);
-                    docPdf.setTextColor(50, 50, 50);
-                    
-                    let baseText = currentLang === 'es' ? window.ExoneracionText : window.ExoneracionTextEn;
-                    
-                    const initials = fName.charAt(0).toUpperCase() + lName.charAt(0).toUpperCase();
-                    const bottomFieldsEs = "\n\nIniciales del participante: " + initials + "\n\nNombres y apellidos completos: " + fName + " " + lName + "\nDocumento de Identidad: " + doc + "\nFecha y hora: " + new Date().toLocaleString();
-                    const bottomFieldsEn = "\n\nParticipant Initials: " + initials + "\n\nFull Name: " + fName + " " + lName + "\nID/Passport: " + doc + "\nDate and Time: " + new Date().toLocaleString();
-                    
-                    baseText += currentLang === 'es' ? bottomFieldsEs : bottomFieldsEn;
-                    
-                    const splitText = docPdf.splitTextToSize(baseText, 170);
-                    
-                    let y = 30;
-                    for (let i = 0; i < splitText.length; i++) {
-                        if (y > 270) {
-                            docPdf.addPage();
-                            y = 20;
-                        }
-                        docPdf.text(splitText[i], 20, y);
-                        y += 5;
+                    const signedAtStr = new Date().toLocaleString('es-CO');
+                    const paxSignaturePayload = buildCurrentPaxPdfPayload(signedAtStr);
+                    paxSignaturePayload.signature = isMinorFlow ? sigDataUrlM : sigDataUrl;
+                    paxSignaturePayload.signatureMinor = isMinorFlow ? { mother: sigDataUrlM, father: sigDataUrlF } : null;
+
+                    // Entregar los 4 documentos PDF consolidados en 1 solo PDF totalmente diligenciado
+                    if (window.LegalDocsHelper && typeof window.LegalDocsHelper.downloadConsolidatedPdf === 'function') {
+                        await window.LegalDocsHelper.downloadConsolidatedPdf(paxSignaturePayload, currentLang);
                     }
-                    
-                    // Add signature
-                    docPdf.setTextColor(0, 0, 0);
-                    if (y > 230) {
-                        docPdf.addPage();
-                        y = 20;
-                    } else {
-                        y += 10;
-                    }
-                    
-                    if (isMinorFlow) {
-                        docPdf.text(currentLang === 'es' ? "Firma Tutor Legal 1:" : "Tutor 1 Signature:", 20, y);
-                        docPdf.addImage(sigDataUrlM, 'PNG', 20, y + 5, 80, 40);
-                        if (!isSingleTutor) {
-                            docPdf.text(currentLang === 'es' ? "Firma Tutor Legal 2:" : "Tutor 2 Signature:", 110, y);
-                            docPdf.addImage(sigDataUrlF, 'PNG', 110, y + 5, 80, 40);
-                        }
-                    } else {
-                        docPdf.text(currentLang === 'es' ? "Firma:" : "Signature:", 20, y);
-                        docPdf.addImage(sigDataUrl, 'PNG', 20, y + 5, 80, 40);
-                    }
-                    
-                    docPdf.save(currentLang === 'es' ? "4_Exoneracion_Responsabilidad_Firmado.pdf" : "4_Liability_Waiver_Signed.pdf");
                     
                     window.AppData = window.AppData || {};
                     window.AppData.passengers = window.AppData.passengers || [];
-                    if(!isMinorFlow) window.AppData.b2cSignature = sigDataUrl;
+                    if (!isMinorFlow) window.AppData.b2cSignature = sigDataUrl;
 
-                    // Find existing or push new to passengers
+                    const paymentSupportObj = b2cPaymentFileDataUrl ? {
+                        dataUrl: b2cPaymentFileDataUrl,
+                        fileName: b2cPaymentFileName || 'comprobante_b2c.png',
+                        fileType: b2cPaymentFileType || 'image/png',
+                        paymentDate: payDateVal,
+                        paymentMethod: payMethodVal,
+                        uploadedAt: new Date().toISOString()
+                    } : null;
+
+                    const legalDocsAcceptedObj = {
+                        bienvenida: true,
+                        terminos: true,
+                        ficha: true,
+                        exoneracion: true,
+                        signedAt: signedAtStr
+                    };
+
+                    // Find existing passenger in AppData
                     const targetDoc = String(doc).trim().toLowerCase();
                     let existingPax = null;
                     for (let i = window.AppData.passengers.length - 1; i >= 0; i--) {
@@ -1227,69 +1701,111 @@ function checkFormValid() {
                     }
 
                     if (existingPax) {
+                        existingPax.b2cCompleted = true;
                         existingPax.waiverSigned = true;
-                        if(isMinorFlow) {
+                        existingPax.signedAt = signedAtStr;
+                        existingPax.legalDocsAccepted = legalDocsAcceptedObj;
+                        existingPax.docType = docTypeVal;
+                        existingPax.country = countryVal;
+                        existingPax.state = stateVal;
+                        existingPax.city = cityVal;
+                        existingPax.address = addressVal;
+                        existingPax.occupation = occVal;
+                        existingPax.occupationOther = occOtherVal;
+                        existingPax.favActivities = favActVal;
+                        existingPax.contactMethod = contactVal;
+                        existingPax.advisor = advisorVal;
+                        existingPax.groupUnderstood = groupUnderstoodVal;
+                        existingPax.medicalUnderstood = medicalUnderstoodVal;
+                        if (isMinorFlow) {
                             existingPax.signatureMinor = { mother: sigDataUrlM, father: sigDataUrlF };
-                            existingPax.signature = sigDataUrlM; // default fallback
-                            existingPax.selfie = window.agTempB2CSelfie || null;
+                            existingPax.signature = sigDataUrlM;
+                            if (window.agTempB2CSelfie) existingPax.selfie = window.agTempB2CSelfie;
+                            if (window.agTempB2CSelfieFather) existingPax.selfieFather = window.agTempB2CSelfieFather;
                         } else {
-                            existingPax.signature = sigDataUrl; // SAVE SIGNATURE
-                            existingPax.selfie = window.agTempB2CSelfie || null;
+                            existingPax.signature = sigDataUrl;
+                            if (window.agTempB2CSelfie) existingPax.selfie = window.agTempB2CSelfie;
+                        }
+                        if (paymentSupportObj) {
+                            existingPax.paymentSupport = paymentSupportObj;
+                            delete existingPax.soportePago;
                         }
                         existingPax.weight = parseFloat(weight) || existingPax.weight || 0;
                         existingPax.medicalCondition = medicalValue;
                         existingPax.name = (fName + ' ' + lName).trim();
                         existingPax.lastname = lName;
-                        existingPax.phone = phone;
-                        existingPax.email = email || existingPax.email || '';
+                        if (phone) existingPax.phone = phone;
+                        if (email) existingPax.email = email;
                         if (!existingPax.history) existingPax.history = [];
                         existingPax.history.push({
                             date: new Date().toISOString(),
-                            action: 'Firma y Selfie B2C registrados',
+                            action: 'Aceptación legal (4 documentos consolidados firmados), Selfie y Soporte de Pago B2C registrados',
                             user: 'Web Client'
                         });
                     } else {
+                        const b2cFormSnapshot = window.TariffGuard ? window.TariffGuard.buildTariffSnapshot() : null;
+                        const b2cTandemPrice = (window.TariffGuard ? window.TariffGuard.getPriceForRecord({ tariffSnapshot: b2cFormSnapshot }, 'Salto Tandem') : 0) || 1500000;
                         window.AppData.passengers.push({
                             id: 'b2c_' + Date.now(),
+                            createdAt: new Date().toISOString(),
+                            tariffSnapshot: b2cFormSnapshot,
                             name: `${fName} ${lName}`.trim(),
+                            lastname: lName,
+                            docType: docTypeVal,
                             doc: doc,
                             phone: phone,
                             email: email,
                             dob: '',
-                            date: '',
+                            date: new Date().toLocaleDateString('en-CA'),
                             time: 'Por definir',
-                            type: 'Tandem',
+                            type: 'Salto Tandem',
                             cams: 'Sin cámaras',
                             weight: parseFloat(weight) || 0,
+                            country: countryVal,
+                            state: stateVal,
+                            city: cityVal,
+                            address: addressVal,
+                            occupation: occVal,
+                            occupationOther: occOtherVal,
+                            favActivities: favActVal,
+                            contactMethod: contactVal,
+                            advisor: advisorVal,
+                            groupUnderstood: groupUnderstoodVal,
+                            medicalUnderstood: medicalUnderstoodVal,
                             medicalCondition: medicalValue,
                             instructor: 'Sin asignar',
                             aeronave: 'Sin asignar',
                             paxStatus: 'Pendiente Check-in',
-                            flightStatus: 'A tiempo / On-Time',
+                            flightStatus: 'Programado',
+                            b2cCompleted: true,
                             waiverSigned: true,
+                            signedAt: signedAtStr,
+                            legalDocsAccepted: legalDocsAcceptedObj,
                             signature: isMinorFlow ? sigDataUrlM : sigDataUrl,
                             signatureMinor: isMinorFlow ? { mother: sigDataUrlM, father: sigDataUrlF } : null,
+                            selfie: window.agTempB2CSelfie || null,
+                            paymentSupport: paymentSupportObj,
                             status: 'En Espera',
                             financiera: {
-                                manualPrice: 0, discount: 0, comisionTo: '', comisionVal: 0, totalPaid: 0
+                                manualPrice: b2cTandemPrice, discount: 0, comisionTo: '', comisionVal: 0, totalPaid: 0, payMethod: payMethodVal
                             },
                             history: [{
                                 date: new Date().toISOString(),
-                                action: 'Pasajero creado vía B2C y firma registrada',
+                                action: 'Pasajero creado vía B2C con documentos legales consolidados y soporte de pago',
                                 user: 'Web Client'
                             }]
                         });
                     }
                     
-                    if (window.saveAppData) window.saveAppData();
+                    if (window.saveAppData) await window.saveAppData();
 
-                    alert(currentLang === 'es' ? '¡Registro y firma completados exitosamente!' : 'Registration and signature successfully completed!');
+                    alert(currentLang === 'es' ? '¡Registro completado exitosamente! Se ha descargado tu PDF consolidado con los 4 documentos legales totalmente diligenciados y firmados.' : 'Registration completed successfully! Your consolidated PDF with all 4 legal documents filled and signed has been downloaded.');
                     window.location.hash = '#/';
                 } catch (err) {
                     console.error("Error signing PDFs", err);
                     alert(currentLang === 'es' ? 'Error al procesar los PDFs: ' + (err.message || 'Desconocido') : 'Error processing PDFs: ' + (err.message || 'Unknown'));
                     btnFinish.disabled = false;
-                    btnFinish.innerHTML = '<i class="fas fa-check"></i> <span data-i18n="btn_finish">Confirmar Reserva</span>';
+                    btnFinish.innerHTML = '<i class="fas fa-paper-plane"></i> <span data-i18n="btn_finish">Finalizar y Enviar Registro</span>';
                 }
             });
         }

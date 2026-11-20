@@ -15,10 +15,11 @@ window.Modules.fleet = {
                             <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Gestión de rutas, aeronaves y horas de vuelo</p>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 1rem;">
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <input type="date" id="fleet-date-filter" class="form-control" style="height: 100%; font-weight: bold; padding: 0.5rem 1rem;">
                         </div>
+                        <button class="btn" id="btn-migrate-flights" style="padding: 0 1.25rem; background: var(--brand-warning); color: #fff; border: none;"><i class="fas fa-exchange-alt"></i> Migrar Vuelos</button>
                         <button class="btn btn-primary" id="btn-replicate" style="padding: 0 1.5rem;"><i class="fas fa-copy"></i> Replicar Día</button>
                     </div>
                 </div>
@@ -134,6 +135,65 @@ window.Modules.fleet = {
                     <div style="display: flex; gap: 1rem; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 1rem;">
                         <button class="btn btn-outline" id="btn-cancel-repl">Cancelar</button>
                         <button class="btn btn-primary" id="btn-confirm-repl"><i class="fas fa-check"></i> Ejecutar Réplica</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Migrar Vuelos entre Aeronaves -->
+            <div id="modal-migrate" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease;">
+                <div class="modal-content card" style="width: 560px; max-width: 94%; max-height: 92vh; overflow-y: auto; position: relative; transform: translateY(-20px); transition: transform 0.3s ease;">
+                    <button id="btn-cancel-mig-top" class="btn" style="position: absolute; top: 1rem; right: 1rem; background: transparent; color: var(--text-secondary); font-size: 1.25rem;"><i class="fas fa-times"></i></button>
+                    <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                        <i class="fas fa-exchange-alt" style="color: var(--brand-warning);"></i> Migrar Vuelos entre Aeronaves
+                    </h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1.25rem; font-size: 0.9rem;">
+                        Transfiere uno o varios vuelos programados (junto con sus pasajeros asignados) de una aeronave origen a otra aeronave operativa.
+                    </p>
+
+                    <div class="form-group">
+                        <label style="font-weight: 600;">Alcance de la Migración</label>
+                        <select id="mig-scope" class="form-control">
+                            <option value="single">1 Vuelo específico</option>
+                            <option value="day" selected>Vuelos de 1 Día</option>
+                            <option value="week">Vuelos de 1 Semana (7 días)</option>
+                            <option value="all">Todos los vuelos de la aeronave</option>
+                        </select>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 600;">Aeronave Origen</label>
+                            <select id="mig-plane-from" class="form-control"></select>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: 600;">Aeronave Destino (Operativa)</label>
+                            <select id="mig-plane-to" class="form-control"></select>
+                        </div>
+                    </div>
+
+                    <div id="mig-date-wrapper" class="form-group">
+                        <label id="mig-date-label" style="font-weight: 600;">Día a Migrar</label>
+                        <input type="date" id="mig-date-base" class="form-control">
+                        <small id="mig-week-range-hint" style="display: none; color: var(--brand-action); font-weight: 600; margin-top: 0.35rem;"></small>
+                    </div>
+
+                    <div id="mig-single-flight-wrapper" class="form-group" style="display: none;">
+                        <label style="font-weight: 600;">Vuelo Específico a Migrar</label>
+                        <select id="mig-single-flight" class="form-control"></select>
+                    </div>
+
+                    <div id="mig-preview-box" style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1rem; font-size: 0.88rem;">
+                        <!-- Dynamic summary -->
+                    </div>
+
+                    <label style="display: flex; align-items: center; gap: 0.55rem; cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                        <input type="checkbox" id="mig-force-overlap" style="accent-color: var(--brand-warning); width: 16px; height: 16px;">
+                        <span>Permitir migración aunque exista cruce de horario en la aeronave destino</span>
+                    </label>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                        <button class="btn btn-outline" id="btn-cancel-mig">Cancelar</button>
+                        <button class="btn" id="btn-confirm-mig" style="background: var(--brand-warning); color: #fff; border: none;"><i class="fas fa-exchange-alt"></i> Confirmar Migración</button>
                     </div>
                 </div>
             </div>
@@ -274,8 +334,8 @@ window.Modules.fleet = {
                 nameDiv.style.flexDirection = 'column';
                 nameDiv.style.justifyContent = 'center';
                 
-                nameDiv.innerHTML = `<strong style="color: var(--text-primary); font-size: 1.05rem;">${a.matricula}</strong>
-                                     <span style="font-size:0.75rem; color:var(--text-secondary);">${a.modelo}</span>`;
+                nameDiv.innerHTML = `<strong style="color: var(--text-primary); font-size: 1.05rem;">${escapeHTML(a.matricula)}</strong>
+                                     <span style="font-size:0.75rem; color:var(--text-secondary);">${escapeHTML(a.modelo)}</span>`;
 
                 const trackDiv = document.createElement('div');
                 trackDiv.style.position = 'relative';
@@ -323,15 +383,43 @@ window.Modules.fleet = {
                     block.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
                     block.style.cursor = 'grab';
                     
-                    block.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 0.5rem; overflow: hidden; white-space: nowrap;">
-                                        <div style="display: flex; flex-direction: column; justify-content: center;">
+                    block.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 0.5rem; overflow: hidden; white-space: nowrap; gap: 0.25rem;">
+                                        <div style="display: flex; flex-direction: column; justify-content: center; overflow: hidden;">
                                             <strong style="font-size: 0.8rem; line-height: 1;">Vuelo #${index + 1}</strong>
-                                            <span style="opacity:0.9; font-size: 0.65rem;" class="time-label">${asg.horaInicio}</span>
+                                            <span style="opacity:0.9; font-size: 0.65rem;" class="time-label">${escapeHTML(asg.horaInicio)}</span>
                                         </div>
                                        </div>`;
-                    
+
+                    const actionsBox = document.createElement('div');
+                    actionsBox.style.display = 'flex';
+                    actionsBox.style.alignItems = 'center';
+                    actionsBox.style.gap = '0.25rem';
+
+                    // Quick migrate single flight btn
+                    const migSingleBtn = document.createElement('button');
+                    migSingleBtn.classList.add('btn-migrate-single-flight');
+                    migSingleBtn.setAttribute('data-flight-id', asg.id);
+                    migSingleBtn.title = 'Migrar este vuelo a otra aeronave';
+                    migSingleBtn.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+                    migSingleBtn.style.background = 'rgba(0,0,0,0.22)';
+                    migSingleBtn.style.border = 'none';
+                    migSingleBtn.style.color = 'white';
+                    migSingleBtn.style.borderRadius = '50%';
+                    migSingleBtn.style.width = '18px';
+                    migSingleBtn.style.height = '18px';
+                    migSingleBtn.style.display = 'flex';
+                    migSingleBtn.style.alignItems = 'center';
+                    migSingleBtn.style.justifyContent = 'center';
+                    migSingleBtn.style.fontSize = '0.58rem';
+                    migSingleBtn.style.cursor = 'pointer';
+                    migSingleBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openMigrateModal({ scope: 'single', fromPlaneId: asg.id_aeronave, dateBase: asg.fecha, flightId: asg.id });
+                    });
+
                     // delete btn
                     const delBtn = document.createElement('button');
+                    delBtn.title = 'Eliminar vuelo';
                     delBtn.innerHTML = '<i class="fas fa-times"></i>';
                     delBtn.style.background = 'rgba(0,0,0,0.2)';
                     delBtn.style.border = 'none';
@@ -345,9 +433,10 @@ window.Modules.fleet = {
                     delBtn.style.fontSize = '0.6rem';
                     delBtn.style.cursor = 'pointer';
                     
-                    delBtn.addEventListener('click', (e) => {
+                    delBtn.addEventListener('click', async (e) => {
                           e.stopPropagation();
-                          if(confirm('¿Eliminar esta asignación de vuelo?')){
+                          const ok = window.showConfirm ? await window.showConfirm('¿Eliminar esta asignación de vuelo?', { title: 'Eliminar Vuelo Programado', type: 'danger' }) : confirm('¿Eliminar esta asignación de vuelo?');
+                          if (ok) {
                               
                               const aeronaveMatricula = window.AppData.aeronaves.find(a => a.id === asg.id_aeronave)?.matricula;
                               if (aeronaveMatricula && window.AppData.passengers) {
@@ -366,7 +455,9 @@ window.Modules.fleet = {
                           }
                       });
                     
-                    block.querySelector('div').appendChild(delBtn);
+                    actionsBox.appendChild(migSingleBtn);
+                    actionsBox.appendChild(delBtn);
+                    block.querySelector('div').appendChild(actionsBox);
                     trackDiv.appendChild(block);
 
                     // Drag & Drop
@@ -579,6 +670,431 @@ window.Modules.fleet = {
             closeReplModal();
             renderGantt();
             alert(`Operación replicada: ${replicated} vuelos agregados. ${conflicts > 0 ? '(' + conflicts + ' ignorados por conflictos)' : ''}`);
+        });
+
+        // =====================================
+        // Migración de Vuelos entre Aeronaves
+        // (1 vuelo, 1 día, 1 semana o todos)
+        // =====================================
+        function addDaysYMD(ymd, days) {
+            if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return '';
+            const [y, m, d] = ymd.split('-').map(Number);
+            const dt = new Date(Date.UTC(y, m - 1, d + days));
+            return dt.toISOString().slice(0, 10);
+        }
+
+        function getMigrationCandidates({ scope, fromPlaneId, dateBase, flightId }) {
+            const allAsgs = (window.AppData.asignacionFlota || []).filter(a => a.id_aeronave === fromPlaneId);
+            let candidates = [];
+            let rangeEnd = dateBase || '';
+
+            if (scope === 'single') {
+                candidates = allAsgs.filter(a => a.id === flightId);
+            } else if (scope === 'day') {
+                candidates = allAsgs.filter(a => a.fecha === dateBase);
+            } else if (scope === 'week') {
+                rangeEnd = addDaysYMD(dateBase, 6);
+                candidates = allAsgs.filter(a => a.fecha >= dateBase && a.fecha <= rangeEnd);
+            } else if (scope === 'all') {
+                candidates = [...allAsgs];
+            }
+
+            candidates.sort((x, y) => {
+                if (x.fecha !== y.fecha) return String(x.fecha || '').localeCompare(String(y.fecha || ''));
+                return timeToMins(x.horaInicio) - timeToMins(y.horaInicio);
+            });
+
+            return { candidates, rangeStart: dateBase || '', rangeEnd };
+        }
+
+        function countAffectedPassengers(candidates, fromPlane) {
+            if (!fromPlane || !Array.isArray(window.AppData.passengers)) return 0;
+            const matchedIds = new Set();
+            candidates.forEach(asg => {
+                window.AppData.passengers.forEach(p => {
+                    if (
+                        p.aeronave === fromPlane.matricula &&
+                        p.date === asg.fecha &&
+                        p.time === asg.horaInicio &&
+                        p.flightStatus !== 'Completado' &&
+                        p.flightStatus !== 'Aterrizó'
+                    ) {
+                        matchedIds.add(p.id || `${p.name}_${p.date}_${p.time}`);
+                    }
+                });
+            });
+            return matchedIds.size;
+        }
+
+        function migrateFlights({ scope, fromPlaneId, toPlaneId, dateBase, flightId, forceOverlap = false }) {
+            const fromPlane = (window.AppData.aeronaves || []).find(a => a.id === fromPlaneId);
+            const toPlane = (window.AppData.aeronaves || []).find(a => a.id === toPlaneId);
+            if (!fromPlane || !toPlane) {
+                return { ok: false, error: 'Selecciona aeronave origen y destino válidas.' };
+            }
+            if (fromPlane.id === toPlane.id) {
+                return { ok: false, error: 'La aeronave origen y la aeronave destino deben ser diferentes.' };
+            }
+
+            const { candidates, rangeStart, rangeEnd } = getMigrationCandidates({ scope, fromPlaneId, dateBase, flightId });
+            if (candidates.length === 0) {
+                return { ok: false, error: 'No hay vuelos programados para migrar con los criterios seleccionados.' };
+            }
+
+            const migratedFlights = [];
+            const skippedFlights = [];
+            const touchedDates = new Set();
+            const migratedPaxIds = new Set();
+            const actor = (typeof sessionStorage !== 'undefined' && (sessionStorage.getItem('fraterno_user') || sessionStorage.getItem('fraterno_username'))) || 'Operaciones';
+
+            candidates.forEach(asg => {
+                const hasConflict = checkOverlap(toPlane.id, asg.fecha, asg.horaInicio, asg.horaFin, asg.id);
+                if (hasConflict && !forceOverlap) {
+                    skippedFlights.push(asg);
+                    return;
+                }
+
+                asg.id_aeronave = toPlane.id;
+                migratedFlights.push(asg);
+                touchedDates.add(asg.fecha);
+
+                // Migrar pasajeros activos asignados a este vuelo exacto
+                (window.AppData.passengers || []).forEach(p => {
+                    if (
+                        p.aeronave === fromPlane.matricula &&
+                        p.date === asg.fecha &&
+                        p.time === asg.horaInicio &&
+                        p.flightStatus !== 'Completado' &&
+                        p.flightStatus !== 'Aterrizó'
+                    ) {
+                        p.aeronave = toPlane.matricula;
+                        migratedPaxIds.add(p.id || `${p.name}_${p.date}_${p.time}`);
+                        p.history = p.history || [];
+                        p.history.push({
+                            date: new Date().toISOString(),
+                            action: `Vuelo migrado de aeronave ${fromPlane.matricula} a ${toPlane.matricula}`,
+                            user: actor
+                        });
+                    }
+                });
+            });
+
+            // Para migraciones por día/semana/todos, también reasignar pasajeros sin hora exacta en fechas donde ya no quedaron vuelos en origen
+            if (scope !== 'single' && migratedFlights.length > 0) {
+                touchedDates.forEach(fecha => {
+                    const remainingOnOrigin = (window.AppData.asignacionFlota || []).some(a => a.id_aeronave === fromPlane.id && a.fecha === fecha);
+                    if (!remainingOnOrigin) {
+                        (window.AppData.passengers || []).forEach(p => {
+                            const noExactTime = !p.time || p.time === 'Por Asignar' || p.time === 'Por definir';
+                            if (
+                                p.aeronave === fromPlane.matricula &&
+                                p.date === fecha &&
+                                noExactTime &&
+                                p.flightStatus !== 'Completado' &&
+                                p.flightStatus !== 'Aterrizó'
+                            ) {
+                                p.aeronave = toPlane.matricula;
+                                migratedPaxIds.add(p.id || `${p.name}_${p.date}`);
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Recalcular número de vuelo (Vuelo N) para los pasajeros de la aeronave destino en las fechas afectadas
+            touchedDates.forEach(fecha => {
+                const destDayFlights = (window.AppData.asignacionFlota || [])
+                    .filter(a => a.id_aeronave === toPlane.id && a.fecha === fecha)
+                    .sort((x, y) => timeToMins(x.horaInicio) - timeToMins(y.horaInicio));
+                destDayFlights.forEach((asg, idx) => {
+                    (window.AppData.passengers || []).forEach(p => {
+                        if (
+                            p.aeronave === toPlane.matricula &&
+                            p.date === fecha &&
+                            p.time === asg.horaInicio &&
+                            p.flightStatus !== 'Completado' &&
+                            p.flightStatus !== 'Aterrizó'
+                        ) {
+                            p.vueloNum = `Vuelo ${idx + 1}`;
+                        }
+                    });
+                });
+            });
+
+            if (migratedFlights.length > 0 && window.saveAppData) {
+                window.saveAppData();
+            }
+
+            return {
+                ok: migratedFlights.length > 0,
+                migratedCount: migratedFlights.length,
+                skippedCount: skippedFlights.length,
+                migratedPassengersCount: migratedPaxIds.size,
+                fromPlane,
+                toPlane,
+                rangeStart,
+                rangeEnd,
+                error: migratedFlights.length === 0
+                    ? 'Todos los vuelos seleccionados presentan conflicto de horario en la aeronave destino (margen logístico de 15 min).'
+                    : null
+            };
+        }
+
+        // Exponer helpers en window.Modules.fleet para reutilización y pruebas
+        window.Modules.fleet.getMigrationCandidates = getMigrationCandidates;
+        window.Modules.fleet.migrateFlights = migrateFlights;
+
+        const modalMigrate = document.getElementById('modal-migrate');
+        const modalMigContent = modalMigrate.querySelector('.modal-content');
+        const btnMigrateFlights = document.getElementById('btn-migrate-flights');
+        const btnCancelMig = document.getElementById('btn-cancel-mig');
+        const btnCancelMigTop = document.getElementById('btn-cancel-mig-top');
+        const btnConfirmMig = document.getElementById('btn-confirm-mig');
+
+        const migScope = document.getElementById('mig-scope');
+        const migPlaneFrom = document.getElementById('mig-plane-from');
+        const migPlaneTo = document.getElementById('mig-plane-to');
+        const migDateWrapper = document.getElementById('mig-date-wrapper');
+        const migDateLabel = document.getElementById('mig-date-label');
+        const migDateBase = document.getElementById('mig-date-base');
+        const migWeekRangeHint = document.getElementById('mig-week-range-hint');
+        const migSingleFlightWrapper = document.getElementById('mig-single-flight-wrapper');
+        const migSingleFlight = document.getElementById('mig-single-flight');
+        const migPreviewBox = document.getElementById('mig-preview-box');
+        const migForceOverlap = document.getElementById('mig-force-overlap');
+
+        function populateMigratePlaneSelects(preferredFromId = null) {
+            const allPlanes = window.AppData.aeronaves || [];
+            const sourcePlanes = allPlanes.filter(a =>
+                a.estado === 'Operativa' || (window.AppData.asignacionFlota || []).some(f => f.id_aeronave === a.id)
+            );
+            migPlaneFrom.innerHTML = '';
+            if (sourcePlanes.length === 0) {
+                migPlaneFrom.innerHTML = '<option value="">-- Sin aeronaves disponibles --</option>';
+            } else {
+                sourcePlanes.forEach(a => {
+                    migPlaneFrom.innerHTML += `<option value="${escapeHTML(a.id)}">${escapeHTML(a.matricula)} (${escapeHTML(a.modelo)}) [${escapeHTML(a.estado)}]</option>`;
+                });
+                if (preferredFromId && sourcePlanes.some(a => a.id === preferredFromId)) {
+                    migPlaneFrom.value = preferredFromId;
+                }
+            }
+            populateMigrateDestSelect();
+        }
+
+        function populateMigrateDestSelect() {
+            const fromId = migPlaneFrom.value;
+            const prevDest = migPlaneTo.value;
+            const destPlanes = (window.AppData.aeronaves || []).filter(a => a.estado === 'Operativa' && a.id !== fromId);
+            migPlaneTo.innerHTML = '';
+            if (destPlanes.length === 0) {
+                migPlaneTo.innerHTML = '<option value="">-- No hay otra aeronave operativa --</option>';
+            } else {
+                destPlanes.forEach(a => {
+                    migPlaneTo.innerHTML += `<option value="${escapeHTML(a.id)}">${escapeHTML(a.matricula)} (${escapeHTML(a.modelo)})</option>`;
+                });
+                if (prevDest && destPlanes.some(a => a.id === prevDest)) {
+                    migPlaneTo.value = prevDest;
+                }
+            }
+        }
+
+        function populateSingleFlightSelect(preferredFlightId = null) {
+            const fromId = migPlaneFrom.value;
+            const dateVal = migDateBase.value;
+            const flights = (window.AppData.asignacionFlota || [])
+                .filter(a => a.id_aeronave === fromId && a.fecha === dateVal)
+                .sort((x, y) => timeToMins(x.horaInicio) - timeToMins(y.horaInicio));
+            migSingleFlight.innerHTML = '';
+            if (flights.length === 0) {
+                migSingleFlight.innerHTML = '<option value="">-- Sin vuelos programados en esta fecha --</option>';
+            } else {
+                flights.forEach((f, idx) => {
+                    const capText = f.capitan ? ` | Cap: ${escapeHTML(f.capitan)}` : '';
+                    migSingleFlight.innerHTML += `<option value="${escapeHTML(f.id)}">Vuelo #${idx + 1} (${escapeHTML(f.horaInicio)} - ${escapeHTML(f.horaFin)})${capText}</option>`;
+                });
+                if (preferredFlightId && flights.some(f => f.id === preferredFlightId)) {
+                    migSingleFlight.value = preferredFlightId;
+                }
+            }
+        }
+
+        function refreshMigrateUI(preferredFlightId = null) {
+            const scope = migScope.value;
+            if (scope === 'all') {
+                migDateWrapper.style.display = 'none';
+                migSingleFlightWrapper.style.display = 'none';
+                migWeekRangeHint.style.display = 'none';
+            } else if (scope === 'week') {
+                migDateWrapper.style.display = 'block';
+                migDateLabel.textContent = 'Inicio de Semana (7 días consecutivos)';
+                migSingleFlightWrapper.style.display = 'none';
+                const endStr = addDaysYMD(migDateBase.value, 6);
+                migWeekRangeHint.textContent = endStr ? `Rango seleccionado: ${migDateBase.value} hasta ${endStr}` : '';
+                migWeekRangeHint.style.display = endStr ? 'block' : 'none';
+            } else if (scope === 'day') {
+                migDateWrapper.style.display = 'block';
+                migDateLabel.textContent = 'Día a Migrar';
+                migSingleFlightWrapper.style.display = 'none';
+                migWeekRangeHint.style.display = 'none';
+            } else {
+                migDateWrapper.style.display = 'block';
+                migDateLabel.textContent = 'Fecha del Vuelo';
+                migSingleFlightWrapper.style.display = 'block';
+                migWeekRangeHint.style.display = 'none';
+                populateSingleFlightSelect(preferredFlightId);
+            }
+
+            const fromId = migPlaneFrom.value;
+            const toId = migPlaneTo.value;
+            const fromPlane = (window.AppData.aeronaves || []).find(a => a.id === fromId);
+            const toPlane = (window.AppData.aeronaves || []).find(a => a.id === toId);
+            const { candidates, rangeStart, rangeEnd } = getMigrationCandidates({
+                scope,
+                fromPlaneId: fromId,
+                dateBase: migDateBase.value,
+                flightId: migSingleFlight.value
+            });
+
+            const conflicts = toId
+                ? candidates.filter(asg => checkOverlap(toId, asg.fecha, asg.horaInicio, asg.horaFin, asg.id))
+                : [];
+            const forceOverlapPreview = !!migForceOverlap.checked;
+            const eligibleCandidates = forceOverlapPreview
+                ? candidates
+                : candidates.filter(asg => !conflicts.includes(asg));
+            const paxCount = countAffectedPassengers(eligibleCandidates, fromPlane);
+            const scopeDesc = scope === 'single'
+                ? '1 vuelo específico'
+                : scope === 'day'
+                    ? `Día ${escapeHTML(rangeStart)}`
+                    : scope === 'week'
+                        ? `Semana (${escapeHTML(rangeStart)} al ${escapeHTML(rangeEnd)})`
+                        : 'Todos los vuelos programados';
+
+            migPreviewBox.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+                    <span><strong>Alcance:</strong> ${scopeDesc}</span>
+                    <span><strong>Ruta:</strong> ${fromPlane ? escapeHTML(fromPlane.matricula) : '—'} → ${toPlane ? escapeHTML(toPlane.matricula) : '—'}</span>
+                </div>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <span><i class="fas fa-plane-departure" style="color: var(--brand-action);"></i> Vuelos a migrar: <strong>${candidates.length}</strong></span>
+                    <span><i class="fas fa-users" style="color: var(--brand-success);"></i> Pasajeros reasignados: <strong>${paxCount}</strong></span>
+                    ${conflicts.length > 0 ? `<span style="color: var(--brand-danger);"><i class="fas fa-exclamation-triangle"></i> Conflictos horarios: <strong>${conflicts.length}</strong></span>` : `<span style="color: var(--brand-success);"><i class="fas fa-check-circle"></i> Sin conflictos horarios</span>`}
+                </div>
+            `;
+        }
+
+        function openMigrateModal(opts = {}) {
+            migScope.value = opts.scope || 'day';
+            migDateBase.value = opts.dateBase || dateFilter.value || today;
+            migForceOverlap.checked = false;
+            populateMigratePlaneSelects(opts.fromPlaneId || planeSelect.value || null);
+            refreshMigrateUI(opts.flightId || null);
+
+            modalMigrate.style.display = 'flex';
+            void modalMigrate.offsetWidth;
+            modalMigrate.style.opacity = '1';
+            modalMigContent.style.transform = 'translateY(0)';
+        }
+
+        function closeMigrateModal() {
+            modalMigrate.style.opacity = '0';
+            modalMigContent.style.transform = 'translateY(-20px)';
+            setTimeout(() => { modalMigrate.style.display = 'none'; }, 300);
+        }
+
+        if (btnMigrateFlights) btnMigrateFlights.addEventListener('click', () => openMigrateModal());
+        if (btnCancelMig) btnCancelMig.addEventListener('click', closeMigrateModal);
+        if (btnCancelMigTop) btnCancelMigTop.addEventListener('click', closeMigrateModal);
+        modalMigrate.addEventListener('click', (e) => { if (e.target === modalMigrate) closeMigrateModal(); });
+
+        migScope.addEventListener('change', () => refreshMigrateUI());
+        migPlaneFrom.addEventListener('change', () => {
+            populateMigrateDestSelect();
+            refreshMigrateUI();
+        });
+        migPlaneTo.addEventListener('change', () => refreshMigrateUI());
+        migDateBase.addEventListener('change', () => refreshMigrateUI());
+        migSingleFlight.addEventListener('change', () => refreshMigrateUI());
+        migForceOverlap.addEventListener('change', () => refreshMigrateUI());
+
+        btnConfirmMig.addEventListener('click', async () => {
+            const scope = migScope.value;
+            const fromPlaneId = migPlaneFrom.value;
+            const toPlaneId = migPlaneTo.value;
+            const dateBase = migDateBase.value;
+            const flightId = migSingleFlight.value;
+            const forceOverlap = !!migForceOverlap.checked;
+
+            if (!fromPlaneId || !toPlaneId) {
+                const msg = 'Debes seleccionar una aeronave origen y una aeronave destino operativa.';
+                return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Datos Incompletos' }) : alert(msg);
+            }
+            if (scope === 'single' && !flightId) {
+                const msg = 'Selecciona el vuelo específico que deseas migrar.';
+                return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Vuelo Requerido' }) : alert(msg);
+            }
+
+            const fromPlane = (window.AppData.aeronaves || []).find(a => a.id === fromPlaneId);
+            const toPlane = (window.AppData.aeronaves || []).find(a => a.id === toPlaneId);
+            const { candidates, rangeStart, rangeEnd } = getMigrationCandidates({ scope, fromPlaneId, dateBase, flightId });
+
+            if (candidates.length === 0) {
+                const msg = 'No hay vuelos programados para migrar con los criterios seleccionados.';
+                return window.showAlert ? window.showAlert(msg, { type: 'info', title: 'Sin Vuelos' }) : alert(msg);
+            }
+
+            const conflicts = candidates.filter(asg => checkOverlap(toPlaneId, asg.fecha, asg.horaInicio, asg.horaFin, asg.id));
+            if (!forceOverlap && conflicts.length === candidates.length) {
+                const msg = 'Todos los vuelos seleccionados presentan conflicto de horario en la aeronave destino (incluye margen logístico de 15 min). Activa la opción "Permitir migración aunque exista cruce de horario" si deseas forzarla.';
+                return window.showAlert ? window.showAlert(msg, { type: 'danger', title: 'Conflicto de Horarios' }) : alert(msg);
+            }
+
+            const eligibleCandidates = forceOverlap
+                ? candidates
+                : candidates.filter(asg => !conflicts.includes(asg));
+            const paxCount = countAffectedPassengers(eligibleCandidates, fromPlane);
+            const scopeLabel = scope === 'single'
+                ? '1 vuelo específico'
+                : scope === 'day'
+                    ? `los vuelos del día ${rangeStart}`
+                    : scope === 'week'
+                        ? `los vuelos de la semana (${rangeStart} al ${rangeEnd})`
+                        : 'TODOS los vuelos programados';
+            const willMigrateCount = eligibleCandidates.length;
+            const conflictNote = (!forceOverlap && conflicts.length > 0)
+                ? `\n• ${conflicts.length} vuelo(s) se omitirán por cruce horario en destino.`
+                : '';
+
+            const confirmText =
+                `¿Confirmas migrar ${scopeLabel} desde ${fromPlane.matricula} hacia ${toPlane.matricula}?\n\n` +
+                `• Vuelos a transferir: ${willMigrateCount}\n` +
+                `• Pasajeros activos que se reasignarán automáticamente: ${paxCount}${conflictNote}`;
+
+            const ok = window.showConfirm
+                ? await window.showConfirm(confirmText, { title: 'Confirmar Migración de Vuelos', type: 'warning' })
+                : confirm(confirmText);
+            if (!ok) return;
+
+            const result = migrateFlights({ scope, fromPlaneId, toPlaneId, dateBase, flightId, forceOverlap });
+            if (!result.ok) {
+                return window.showAlert ? window.showAlert(result.error, { type: 'danger', title: 'No se pudo migrar' }) : alert(result.error);
+            }
+
+            closeMigrateModal();
+            renderGantt();
+
+            const summaryMsg =
+                `Se migraron ${result.migratedCount} vuelo(s) de ${result.fromPlane.matricula} a ${result.toPlane.matricula}.` +
+                (result.migratedPassengersCount > 0 ? `\nPasajeros actualizados: ${result.migratedPassengersCount}.` : '') +
+                (result.skippedCount > 0 ? `\nVuelos omitidos por conflicto horario: ${result.skippedCount}.` : '');
+
+            if (window.showAlert) {
+                window.showAlert(summaryMsg, { type: 'success', title: 'Migración Completada' });
+            } else {
+                alert(summaryMsg);
+            }
         });
 
     }

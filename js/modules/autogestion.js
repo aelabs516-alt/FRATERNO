@@ -849,84 +849,10 @@ window.Modules.autogestion = {
 
         // Submit form
         if (form) {
-            
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btnFinish = document.getElementById('ag-btn-confirm');
-            
-            const fname = document.getElementById('ag-fname').value;
-            const lname = document.getElementById('ag-lname').value;
-            
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btnFinish = document.getElementById('ag-btn-confirm');
 
-            btnFinish.disabled = true;
-            btnFinish.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (translations[currentLang]?.alert_processing || 'Procesando...');
-
-            try {
-                const { PDFDocument } = window.PDFLib;
-                const suffix = currentLang === 'en' ? '_EN' : '';
-                const files = [
-                    '1_bienvenida' + suffix + '.pdf',
-                    '2_terminos_condiciones' + suffix + '.pdf',
-                    '3_ficha_informacion' + suffix + '.pdf',
-                    '4_exoneracion' + suffix + '.pdf'
-                ];
-
-                const mergedPdf = await PDFDocument.create();
-                const totalPax = parseInt(document.getElementById('ag-qty').value) || 1;
-                for (let pax = 1; pax <= totalPax; pax++) {
-                    const canvas = document.getElementById('ag-signature-pad-' + pax);
-                    const sigDataUrl = canvas.toDataURL('image/png');
-                    const pngImageBytes = await fetch(sigDataUrl).then(res => res.arrayBuffer());
-
-                    for (const file of files) {
-                        try {
-                            const docKey = file.includes('1_bienvenida') ? 'bienvenida' : 'terminos';
-                            let docUrl = 'assets/docs/' + file;
-                            const fullKey = docKey + '_' + (typeof currentLang !== 'undefined' && currentLang === 'en' ? 'en' : 'es');
-                            const docArr = window.AppData?.legalDocs?.[fullKey];
-                            if (docArr && docArr.length > 0 && docArr[docArr.length - 1].dataUrl) {
-                                docUrl = docArr[docArr.length - 1].dataUrl;
-                            }
-                            
-                            const res = await fetch(docUrl);
-                            if (!res.ok) continue;
-                            const arrayBuffer = await res.arrayBuffer();
-                            const pdfDoc = await PDFDocument.load(arrayBuffer);
-                            
-                            const pngImage = await pdfDoc.embedPng(pngImageBytes);
-                            
-                            const pages = pdfDoc.getPages();
-                            if (pages.length > 0) {
-                                const lastPage = pages[pages.length - 1];
-                                const { width, height } = lastPage.getSize();
-                                const sigDims = pngImage.scale(0.5);
-                                lastPage.drawImage(pngImage, {
-                                    x: width / 2 - sigDims.width / 2,
-                                    y: 50,
-                                    width: sigDims.width,
-                                    height: sigDims.height,
-                                });
-                            }
-                            const modifiedBytes = await pdfDoc.save();
-                            const modifiedDoc = await PDFDocument.load(modifiedBytes);
-                            const copiedPages = await mergedPdf.copyPages(modifiedDoc, modifiedDoc.getPageIndices());
-                            copiedPages.forEach(page => mergedPdf.addPage(page));
-                        } catch (err) {
-                            console.error(err);
-                        }
-                    }
-                }
-                
-                const mergedPdfBytes = await mergedPdf.save();
-                const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = "Documentos_Firmados_Autogestion.pdf";
-                link.click();
-
-                // Generate booking logic ...
-
-                
                 const fName = document.getElementById('ag-fname').value.trim();
                 const lName = document.getElementById('ag-lname').value.trim();
                 const name = `${fName} ${lName}`.trim();
@@ -935,7 +861,6 @@ window.Modules.autogestion = {
                 const weight = parseFloat(document.getElementById('ag-weight').value);
                 const date = document.getElementById('ag-date').value;
                 const type = document.getElementById('ag-type').value;
-
                 const qty = parseInt(document.getElementById('ag-qty').value) || 1;
                 const emailMain = document.getElementById('ag-email').value.trim();
 
@@ -947,9 +872,8 @@ window.Modules.autogestion = {
                     }
                 }
 
-                window.AppData = window.AppData || {};
-                window.AppData.passengers = window.AppData.passengers || [];
-
+                // Pre-validate all passengers before disabling button or generating PDFs
+                const paxDrafts = [];
                 for (let i = 1; i <= qty; i++) {
                     let pName, pDoc, pPhone, pEmail, pWeight;
                     if (i === 1) {
@@ -959,20 +883,20 @@ window.Modules.autogestion = {
                         pEmail = emailMain;
                         pWeight = weight;
                     } else {
-                        const cfName = document.getElementById(`ag-fname-${i}`).value.trim();
-                        const clName = document.getElementById(`ag-lname-${i}`).value.trim();
+                        const cfName = (document.getElementById(`ag-fname-${i}`)?.value || '').trim();
+                        const clName = (document.getElementById(`ag-lname-${i}`)?.value || '').trim();
                         pName = `${cfName} ${clName}`.trim();
-                        pDoc = document.getElementById(`ag-doc-${i}`).value.trim();
-                        pPhone = document.getElementById(`ag-phone-${i}`).value.trim();
-                        pEmail = document.getElementById(`ag-email-${i}`).value.trim();
-                        pWeight = parseFloat(document.getElementById(`ag-weight-${i}`).value);
+                        pDoc = (document.getElementById(`ag-doc-${i}`)?.value || '').trim();
+                        pPhone = (document.getElementById(`ag-phone-${i}`)?.value || '').trim();
+                        pEmail = (document.getElementById(`ag-email-${i}`)?.value || '').trim();
+                        pWeight = parseFloat(document.getElementById(`ag-weight-${i}`)?.value);
                     }
 
                     if (pWeight > 100) {
                         alert(`El pasajero ${pName} supera el peso máximo permitido (100 kg) por razones operativas y de seguridad.`);
                         return;
                     }
-                    if (pWeight < 30) {
+                    if (pWeight < 30 || isNaN(pWeight)) {
                         alert(`El pasajero ${pName} no cumple con el peso mínimo requerido (30 kg).`);
                         return;
                     }
@@ -983,7 +907,16 @@ window.Modules.autogestion = {
                             cams.push(chk.value);
                         });
                     }
+                    const sigCanvas = document.getElementById('ag-signature-pad-' + i);
+                    const sigDataUrl = (sigCanvas && typeof sigCanvas.toDataURL === 'function') ? sigCanvas.toDataURL('image/png') : null;
 
+                    paxDrafts.push({ i, pName, pDoc, pPhone, pEmail, pWeight, cams, sigDataUrl });
+                }
+
+                btnFinish.disabled = true;
+                btnFinish.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (translations[currentLang]?.alert_processing || 'Procesando...');
+
+                try {
                     const getDocVersion = (docKey) => {
                         const actualDocKey = docKey === 'guia' ? 'bienvenida' : docKey;
                         const fullKey = actualDocKey + '_' + (typeof currentLang !== 'undefined' && currentLang === 'en' ? 'en' : 'es');
@@ -991,62 +924,87 @@ window.Modules.autogestion = {
                         return (docArr && docArr.length > 0) ? docArr[docArr.length - 1].version : 1;
                     };
 
-                    const newPax = {
-                        id: 'pax_' + Date.now() + '_' + i,
-                        name: pName,
-                        doc: pDoc,
-                        phone: pPhone,
-                        email: pEmail,
-                        weight: pWeight,
-                        type,
-                        date,
-                        cams: cams.length > 0 ? cams.join(', ') : 'Ninguna',
-                        time: 'Por Asignar',
-                        paxStatus: 'Pendiente Check-in',
-                        flightStatus: 'En Espera',
-                        waiverSigned: true,
-                        signature: document.getElementById('ag-signature-pad-' + i) ? document.getElementById('ag-signature-pad-' + i).toDataURL('image/png') : null,
-                        selfie: (window.agTempSelfies && window.agTempSelfies[i]) ? window.agTempSelfies[i] : null,
-                        instructor: 'Sin asignar',
-                        aeronave: 'Sin asignar',
-                        acceptedDocs: {
-                            versions: {
-                                guia: getDocVersion('guia'),
-                                terminos: getDocVersion('terminos'),
-                                ficha: getDocVersion('ficha'),
-                                exoneracion: getDocVersion('exoneracion')
+                    window.AppData = window.AppData || {};
+                    window.AppData.passengers = window.AppData.passengers || [];
+
+                    const tariffSnapshot = window.TariffGuard ? window.TariffGuard.buildTariffSnapshot() : null;
+                    const createdAtIso = new Date().toISOString();
+                    for (const draft of paxDrafts) {
+                        const baseJumpPrice = window.TariffGuard
+                            ? window.TariffGuard.getPriceForRecord({ tariffSnapshot }, window.TariffGuard.resolveJumpTypeItemName(type, tariffSnapshot?.items))
+                            : (prices.base || 0);
+                        const newPax = {
+                            id: 'pax_' + Date.now() + '_' + draft.i,
+                            createdAt: createdAtIso,
+                            tariffSnapshot,
+                            name: draft.pName,
+                            doc: draft.pDoc,
+                            phone: draft.pPhone,
+                            email: draft.pEmail,
+                            weight: draft.pWeight,
+                            type,
+                            date,
+                            cams: draft.cams.length > 0 ? draft.cams.join(', ') : 'Ninguna',
+                            time: 'Por Asignar',
+                            paxStatus: 'Pendiente Check-in',
+                            flightStatus: 'En Espera',
+                            waiverSigned: true,
+                            signature: draft.sigDataUrl,
+                            selfie: (window.agTempSelfies && window.agTempSelfies[draft.i]) ? window.agTempSelfies[draft.i] : null,
+                            instructor: 'Sin asignar',
+                            aeronave: 'Sin asignar',
+                            financiera: {
+                                manualPrice: baseJumpPrice,
+                                discount: 0,
+                                totalPaid: 0
+                            },
+                            acceptedDocs: {
+                                date: new Date().toISOString(),
+                                versions: {
+                                    guia: getDocVersion('guia'),
+                                    terminos: getDocVersion('terminos'),
+                                    ficha: getDocVersion('ficha'),
+                                    exoneracion: getDocVersion('exoneracion')
+                                }
+                            }
+                        };
+
+                        if (window.LegalDocsHelper && typeof window.LegalDocsHelper.generateAllSignedLegalDocs === 'function') {
+                            try {
+                                newPax.signedLegalDocs = await window.LegalDocsHelper.generateAllSignedLegalDocs(newPax, currentLang);
+                            } catch (pdfErr) {
+                                console.warn('Could not embed PDFs in autogestion:', pdfErr);
                             }
                         }
-                    };
-                    window.AppData.passengers.push(newPax);
-                }
-                
-                if (window.saveAppData) window.saveAppData();
 
-                // Success feedback
-                form.innerHTML = `
-                    <div style="text-align: center; padding: 3rem 1rem; animation: fadeDown 0.5s ease-out;">
-                        <div style="width: 80px; height: 80px; background: rgba(16, 185, 129, 0.2); color: #10b981; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 2.5rem; margin: 0 auto 1.5rem auto;">
-                            <i class="fas fa-check"></i>
+                        window.AppData.passengers.push(newPax);
+                    }
+
+                    if (window.saveAppData) window.saveAppData();
+
+                    // Success feedback
+                    form.innerHTML = `
+                        <div style="text-align: center; padding: 3rem 1rem; animation: fadeDown 0.5s ease-out;">
+                            <div style="width: 80px; height: 80px; background: rgba(16, 185, 129, 0.2); color: #10b981; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 2.5rem; margin: 0 auto 1.5rem auto;">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h3 style="color: var(--text-primary); font-size: 1.5rem; margin-bottom: 1rem;">¡Reserva Confirmada!</h3>
+                            <p style="color: var(--text-secondary); font-size: 1rem; margin-bottom: 2rem;">
+                                Hola ${escapeHTML(name)}, tu reserva para el ${escapeHTML(date)} ha sido pre-registrada con éxito${qty > 1 ? ` para ${qty} personas` : ''}.<br><br>
+                                <span style="color: var(--text-primary); font-weight: bold;">
+                                    <i class="fas fa-envelope-open-text"></i> Hemos enviado un enlace a los correos electrónicos registrados para ingresar al Portal Cliente (B2C) y completar la firma y el registro de la Ficha Informativa y Exoneración de Responsabilidad.
+                                </span>
+                            </p>
+                            <button onclick="window.location.reload()" class="btn" style="background: transparent; border: 1px solid #3b82f6; color: var(--brand-action); padding: 0.8rem 2rem; border-radius: 30px; font-weight: bold; cursor: pointer; transition: all 0.2s;">Hacer Otra Reserva</button>
                         </div>
-                        <h3 style="color: var(--text-primary); font-size: 1.5rem; margin-bottom: 1rem;">¡Reserva Confirmada!</h3>
-                        <p style="color: var(--text-secondary); font-size: 1rem; margin-bottom: 2rem;">
-                            Hola ${escapeHTML(name)}, tu reserva para el ${escapeHTML(date)} ha sido pre-registrada con éxito${qty > 1 ? ` para ${qty} personas` : ''}.<br><br>
-                            <span style="color: var(--text-primary); font-weight: bold;">
-                                <i class="fas fa-envelope-open-text"></i> Hemos enviado un enlace a los correos electrónicos registrados para ingresar al Portal Cliente (B2C) y completar la firma y el registro de la Ficha Informativa y Exoneración de Responsabilidad.
-                            </span>
-                        </p>
-                        <button onclick="window.location.reload()" class="btn" style="background: transparent; border: 1px solid #3b82f6; color: var(--brand-action); padding: 0.8rem 2rem; border-radius: 30px; font-weight: bold; cursor: pointer; transition: all 0.2s;">Hacer Otra Reserva</button>
-                    </div>
-                `;
-            
-            } catch (err) {
-                console.error(err);
-                alert(translations[currentLang]?.alert_error || 'Error al procesar los PDFs.');
-                btnFinish.disabled = false;
-                btnFinish.innerHTML = translations[currentLang]?.btn_confirm || 'Confirmar Reserva';
-            }
-});
+                    `;
+                } catch (err) {
+                    console.error(err);
+                    alert(translations[currentLang]?.alert_error || 'Error al procesar los PDFs.');
+                    btnFinish.disabled = false;
+                    btnFinish.innerHTML = translations[currentLang]?.btn_confirm || 'Confirmar Reserva';
+                }
+            });
         }
     }
 };

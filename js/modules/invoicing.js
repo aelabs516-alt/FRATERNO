@@ -81,7 +81,7 @@ window.Modules.invoicing = {
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0;">
                                     <label>V. Unitario ($)</label>
-                                    <input type="text" id="factura-item-price" class="form-control" placeholder="700.000" oninput="if(this.value!=='') this.value = parseInt(this.value.replace(/\\D/g, '')||0).toLocaleString('es-CO')">
+                                    <input type="text" id="factura-item-price" class="form-control" placeholder="700.000">
                                 </div>
                                 <button class="btn btn-success" id="btn-add-factura-item" style="height: 42px; margin-bottom: 2px; padding: 0 1.5rem;"><i class="fas fa-plus"></i> Agregar</button>
                             </div>
@@ -1633,6 +1633,8 @@ window.Modules.invoicing = {
 
                 const newFactura = {
                     num: currentSeq,
+                    createdAt: new Date().toISOString(),
+                    tariffVersion: (window.AppData && window.AppData.maestroValoresVersion) || 1,
                     fecha: document.getElementById('factura-fecha').value || new Date().toISOString().split('T')[0],
                     cliente: document.getElementById('factura-nombre').value,
                     doc: document.getElementById('factura-id').value,
@@ -1697,16 +1699,16 @@ window.Modules.invoicing = {
 
             tbody.innerHTML = filtered.map(f => `
                 <tr style="border-bottom: 1px solid var(--border-color);">
-                    <td style="padding: 0.75rem;"><b>${f.num}</b></td>
-                    <td style="padding: 0.75rem;">${f.fecha || ''}</td>
-                    <td style="padding: 0.75rem;">${f.doc || ''}</td>
-                    <td style="padding: 0.75rem;">${f.cliente || ''}</td>
-                    <td style="padding: 0.75rem;">${f.tel || ''}</td>
+                    <td style="padding: 0.75rem;"><b>${escapeHTML(f.num)}</b></td>
+                    <td style="padding: 0.75rem;">${escapeHTML(f.fecha || '')}</td>
+                    <td style="padding: 0.75rem;">${escapeHTML(f.doc || '')}</td>
+                    <td style="padding: 0.75rem;">${escapeHTML(f.cliente || '')}</td>
+                    <td style="padding: 0.75rem;">${escapeHTML(f.tel || '')}</td>
                     <td style="padding: 0.75rem;">$${(f.total || 0).toLocaleString('es-CO')}</td>
                     <td style="padding: 0.75rem; display: flex; gap: 0.5rem; justify-content: flex-start; align-items: center; border-bottom: none;">
-                        <button class="btn btn-sm btn-primary btn-load-factura" data-num="${f.num}" title="Cargar" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;"><i class="fas fa-eye"></i></button>
-                        <button class="btn btn-sm btn-success btn-download-factura" data-num="${f.num}" title="Descargar PDF" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #0ea5e9; border-color: #0ea5e9; color: white;"><i class="fas fa-file-pdf"></i></button>
-                        ${isAdmin ? `<button class="btn btn-sm btn-danger btn-delete-factura" data-num="${f.num}" title="Eliminar" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #ef4444; border-color: #ef4444; color: white;"><i class="fas fa-trash"></i></button>` : ''}
+                        <button class="btn btn-sm btn-primary btn-load-factura" data-num="${escapeHTML(f.num)}" title="Cargar" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;"><i class="fas fa-eye"></i></button>
+                        <button class="btn btn-sm btn-success btn-download-factura" data-num="${escapeHTML(f.num)}" title="Descargar PDF" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #0ea5e9; border-color: #0ea5e9; color: white;"><i class="fas fa-file-pdf"></i></button>
+                        ${isAdmin ? `<button class="btn btn-sm btn-danger btn-delete-factura" data-num="${escapeHTML(f.num)}" title="Eliminar" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #ef4444; border-color: #ef4444; color: white;"><i class="fas fa-trash"></i></button>` : ''}
                     </td>
                 </tr>
             `).join('');

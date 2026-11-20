@@ -238,10 +238,13 @@ window.Modules.billing = {
             tbIngresos.innerHTML = '';
             tbNomina.innerHTML = '';
             
-            // Populate Instructor Filter
+            // Populate Instructor Filter (Req #6: Instructor Tándem, AFF, S&TA, Camara Flyer)
             const instFilter = document.getElementById('billing-instructor-filter');
             if (instFilter && instFilter.options.length <= 1) {
-                const emps = (window.AppData?.employees || []).filter(e => ['Piloto', 'Instructor Tandem', 'Tandem', 'Cameraman'].includes(e.role));
+                const emps = (window.AppData?.employees || []).filter(e =>
+                    ['Piloto', 'Instructor Tandem', 'Instructor AFF', 'S&TA', 'Camara Flyer', 'Instructor', 'Tandem', 'Cameraman'].includes(e.role) ||
+                    (window.isAssignableCameraInstructor && window.isAssignableCameraInstructor(e))
+                );
                 emps.forEach(e => {
                     const lname = e.lastname ? ` | ${e.lastname}` : '';
                     const doc = e.doc ? ` | ${e.doc}` : '';
@@ -256,16 +259,40 @@ window.Modules.billing = {
             let totalNomina = 0;
             
             const paxs = window.AppData?.passengers || [];
-            const maestro = window.AppData?.maestroValores || [];
-            
-            const getPrice = (name) => {
-                const item = maestro.find(x => x.name === name);
-                return item && item.price ? parseInt(item.price.replace(/\\./g, '')) || 0 : 0;
+            const maestroFallback = window.AppData?.maestroValores || [];
+
+            const parseMoneyFallback = (val) => {
+                if (typeof val === 'number' && !isNaN(val)) return Math.round(val);
+                const digits = String(val ?? '0').replace(/\D/g, '');
+                return digits ? parseInt(digits, 10) : 0;
             };
-            
-            const getComision = (name) => {
-                const item = maestro.find(x => x.name === name);
-                return item && item.comision ? parseInt(item.comision.replace(/\\./g, '')) || 0 : 0;
+
+            const getPriceForPax = (pax, name) => {
+                if (window.TariffGuard) {
+                    return window.TariffGuard.getPriceForRecord(pax, name);
+                }
+                const list = (pax && pax.tariffSnapshot && Array.isArray(pax.tariffSnapshot.items)) ? pax.tariffSnapshot.items : maestroFallback;
+                const item = list.find(x => x.name === name);
+                return item ? parseMoneyFallback(item.price) : 0;
+            };
+
+            const getComisionForPax = (pax, name) => {
+                if (window.TariffGuard) {
+                    return window.TariffGuard.getComisionForRecord(pax, name);
+                }
+                const list = (pax && pax.tariffSnapshot && Array.isArray(pax.tariffSnapshot.items)) ? pax.tariffSnapshot.items : maestroFallback;
+                const item = list.find(x => x.name === name);
+                return item ? parseMoneyFallback(item.comision) : 0;
+            };
+
+            const resolveJumpItemName = (pax) => {
+                if (window.TariffGuard) {
+                    return window.TariffGuard.resolveJumpTypeItemName(pax.type, window.TariffGuard.getEffectiveMaestroForRecord(pax));
+                }
+                const t = String(pax.type || '');
+                if (!t || t === 'Tandem' || t === 'Salto Tandem') return 'Salto Tandem';
+                if (t.includes('AFF')) return 'Salto AFF';
+                return 'Salto Tandem';
             };
 
             const nominaMap = {};
@@ -274,30 +301,36 @@ window.Modules.billing = {
                 // Ingresos
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid var(--border-color)';
-                
-                // Base
-                let base = p.financiera?.manualPrice || getPrice(p.type === 'Tandem' ? 'Salto Tandem' : (p.type.includes('AFF') ? 'Salto AFF' : 'Salto Tandem'));
+
+                const jumpItemName = resolveJumpItemName(p);
+
+                // Base (respeta tarifa congelada en financiera o snapshot del pasajero)
+                const hasExplicitManualPrice = p.financiera && typeof p.financiera.manualPrice === 'number' && (p.financiera.manualPrice > 0 || !!p.financiera.cortesiaObs);
+                let base = hasExplicitManualPrice ? p.financiera.manualPrice : getPriceForPax(p, jumpItemName);
                 
                 // Kilos
                 let kgs = p.weight > 90 ? (p.weight - 90) : 0;
-                let kgValue = kgs * getPrice('Valor KG Extra');
+                let kgValue = kgs * getPriceForPax(p, 'Valor KG Extra');
                 
                 // Cams
                 let extraVal = 0;
                 if (p.cams) {
-                    if (p.cams.includes('360')) extraVal += getPrice('Cámara 360');
-                    if (p.cams.includes('GoPro') || p.cams.includes('Handcam')) extraVal += getPrice('Cámara Go-Pro');
-                    if (p.cams.includes('Ext')) extraVal += getPrice('Cámara Externa');
+                    if (p.cams.includes('360')) extraVal += getPriceForPax(p, 'Cámara 360');
+                    if (p.cams.includes('GoPro') || p.cams.includes('Go-Pro') || p.cams.includes('Handcam')) extraVal += getPriceForPax(p, 'Cámara Go-Pro');
+                    if (p.cams.includes('Ext')) extraVal += getPriceForPax(p, 'Cámara Externa');
                 }
 
                 const income = base + kgValue + extraVal;
                 totalIngresos += income;
+                const tariffBadge = p.tariffSnapshot && p.tariffSnapshot.version
+                    ? ` <span title="Tarifa bloqueada versión ${p.tariffSnapshot.version}" style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 999px; background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600; vertical-align: middle;">v${p.tariffSnapshot.version}</span>`
+                    : '';
                 
                 tr.style.transition = 'background 0.2s';
                 tr.onmouseover = () => tr.style.background = 'var(--bg-surface-hover)';
                 tr.onmouseout = () => tr.style.background = 'transparent';
                 tr.innerHTML = `
-                    <td style="padding: 1rem; font-weight: 600;">${escapeHTML(p.name)}</td>
+                    <td style="padding: 1rem; font-weight: 600;">${escapeHTML(p.name)}${tariffBadge}</td>
                     <td style="padding: 1rem;">${escapeHTML(p.type)}</td>
                     <td style="padding: 1rem;">${escapeHTML(p.cams || "-")} / ${kgs > 0 ? kgs+'kg Ext' : 'Sin Ext'}</td>
                     <td style="padding: 1rem;">${formatCurrency(base)}</td>
@@ -311,7 +344,7 @@ window.Modules.billing = {
                 `;
                 tbIngresos.appendChild(tr);
                 
-                // Nómina (Aggregation)
+                // Nómina (Aggregation usando la tarifa congelada de cada pasajero)
                 if (p.instructor && p.instructor !== 'Sin asignar') {
                     const key = `${p.instructor}_${p.date || 'S/D'}`;
                     if (!nominaMap[key]) {
@@ -320,16 +353,16 @@ window.Modules.billing = {
                     
                     nominaMap[key].saltos += 1;
                     
-                    let instKgVal = kgs * getComision('Valor KG Extra');
+                    let instKgVal = kgs * getComisionForPax(p, 'Valor KG Extra');
                     nominaMap[key].kilos += instKgVal;
                     
-                    let instCam360 = (p.cams || '').includes('360') ? getComision('Cámara 360') : 0;
+                    let instCam360 = (p.cams || '').includes('360') ? getComisionForPax(p, 'Cámara 360') : 0;
                     nominaMap[key].cam360 += instCam360;
                     
-                    let instCamGoPro = ((p.cams || '').includes('GoPro') || (p.cams || '').includes('Handcam')) ? getComision('Cámara Go-Pro') : 0;
+                    let instCamGoPro = ((p.cams || '').includes('GoPro') || (p.cams || '').includes('Go-Pro') || (p.cams || '').includes('Handcam')) ? getComisionForPax(p, 'Cámara Go-Pro') : 0;
                     nominaMap[key].camExt += instCamGoPro;
                     
-                    let instBase = getComision(p.type === 'Tandem' ? 'Salto Tandem' : (p.type.includes('AFF') ? 'Salto AFF' : 'Salto Tandem'));
+                    let instBase = getComisionForPax(p, jumpItemName);
                     nominaMap[key].base += instBase;
                     
                     const totExt = instKgVal + instCam360 + instCamGoPro;
@@ -343,7 +376,7 @@ window.Modules.billing = {
                         nominaMap[camKey] = { instructor: p.camInstructor, date: p.date || 'S/D', saltos: 0, kilos: 0, cam360: 0, camExt: 0, base: 0, extras: 0, total: 0 };
                     }
                     
-                    let instCamExtReal = ((p.cams || '').includes('Ext') || (p.cams || '').includes('Externa')) ? getComision('Cámara Externa') : 0;
+                    let instCamExtReal = ((p.cams || '').includes('Ext') || (p.cams || '').includes('Externa')) ? getComisionForPax(p, 'Cámara Externa') : 0;
                     if (instCamExtReal > 0) {
                         nominaMap[camKey].camExt += instCamExtReal;
                         nominaMap[camKey].extras += instCamExtReal;
@@ -422,12 +455,12 @@ window.Modules.billing = {
                 });
             }
 
-            // Get unit prices
+            // Get unit prices (fallback for records sin snapshot previo)
             const maestro = window.AppData?.maestroValores || [];
             const empaqueTandemItem = maestro.find(x => x.name === 'Empaque Tandem');
             const empaqueEscuelaItem = maestro.find(x => x.name === 'Empaque Escuela');
-            const pTandem = empaqueTandemItem && empaqueTandemItem.price ? parseInt(empaqueTandemItem.price.toString().replace(/\./g, '')) || 0 : 0;
-            const pEscuela = empaqueEscuelaItem && empaqueEscuelaItem.price ? parseInt(empaqueEscuelaItem.price.toString().replace(/\./g, '')) || 0 : 0;
+            const pTandem = empaqueTandemItem && empaqueTandemItem.price ? parseInt(empaqueTandemItem.price.toString().replace(/\D/g, ''), 10) || 0 : 0;
+            const pEscuela = empaqueEscuelaItem && empaqueEscuelaItem.price ? parseInt(empaqueEscuelaItem.price.toString().replace(/\D/g, ''), 10) || 0 : 0;
 
             if(tbody) tbody.innerHTML = '';
             let totalGeneral = 0;
@@ -436,16 +469,22 @@ window.Modules.billing = {
             records.forEach(r => {
                 const emp = (window.AppData?.employees || []).find(e => e.id === r.empId);
                 const empName = emp ? emp.name : 'Desconocido';
-                const uPrice = (r.type === 'Escuela') ? pEscuela : pTandem;
+                const itemName = (r.type === 'Escuela') ? 'Empaque Escuela' : 'Empaque Tandem';
+                const uPrice = (typeof r.unitPrice === 'number' && !isNaN(r.unitPrice))
+                    ? r.unitPrice
+                    : (window.TariffGuard ? window.TariffGuard.getPriceForRecord(r, itemName) : ((r.type === 'Escuela') ? pEscuela : pTandem));
                 const totalRow = r.count * uPrice;
                 totalGeneral += totalRow;
+                const verBadge = r.tariffSnapshot && r.tariffSnapshot.version
+                    ? ` <span title="Tarifa bloqueada versión ${r.tariffSnapshot.version}" style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 999px; background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600;">v${r.tariffSnapshot.version}</span>`
+                    : '';
 
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid var(--border-color)';
                 tr.innerHTML = `
                     <td style="padding: 1rem;">${r.date}</td>
                     <td style="padding: 1rem; font-weight: 600;">${escapeHTML(empName)}</td>
-                    <td style="padding: 1rem;">${r.type || 'Tandem'}</td>
+                    <td style="padding: 1rem;">${escapeHTML(r.type || 'Tandem')}${verBadge}</td>
                     <td style="padding: 1rem; text-align: center;">${r.count}</td>
                     <td style="padding: 1rem;">${formatCurrency(uPrice)}</td>
                     <td style="padding: 1rem; font-weight: 700; color: var(--brand-action);">${formatCurrency(totalRow)}</td>
@@ -458,9 +497,10 @@ window.Modules.billing = {
 
             // Delete logic
             document.querySelectorAll('.btn-del-empaque').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    if (confirm('¿Eliminar este registro?')) {
-                        const id = e.currentTarget.getAttribute('data-id');
+                btn.addEventListener('click', async (e) => {
+                    const id = e.currentTarget.getAttribute('data-id');
+                    const ok = window.showConfirm ? await window.showConfirm('¿Eliminar este registro?', { title: 'Eliminar Registro de Empaque', type: 'danger' }) : confirm('¿Eliminar este registro?');
+                    if (ok) {
                         window.AppData.packerBilling = window.AppData.packerBilling.filter(x => x.id !== id);
                         if (window.saveAppData) window.saveAppData();
                         renderEmpacadores();
@@ -481,13 +521,26 @@ window.Modules.billing = {
                     return alert('Por favor, complete todos los campos correctamente.');
                 }
 
+                const itemName = (type === 'Escuela') ? 'Empaque Escuela' : 'Empaque Tandem';
+                const snapshot = window.TariffGuard ? window.TariffGuard.buildTariffSnapshot() : null;
+                let unitPrice = 0;
+                if (window.TariffGuard) {
+                    unitPrice = window.TariffGuard.getPriceForRecord({ tariffSnapshot: snapshot }, itemName);
+                } else {
+                    const item = (window.AppData?.maestroValores || []).find(x => x.name === itemName);
+                    unitPrice = item && item.price ? parseInt(String(item.price).replace(/\D/g, ''), 10) || 0 : 0;
+                }
+
                 window.AppData.packerBilling = window.AppData.packerBilling || [];
                 window.AppData.packerBilling.push({
                     id: 'empaque_' + Date.now(),
                     empId,
                     date,
                     type,
-                    count
+                    count,
+                    unitPrice,
+                    createdAt: new Date().toISOString(),
+                    tariffSnapshot: snapshot
                 });
 
                 if (window.saveAppData) window.saveAppData();

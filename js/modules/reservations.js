@@ -257,6 +257,15 @@ window.Modules.reservations = {
             'Fun Jumper': 1200000
         };
 
+        const getBasePriceForJumpType = (jumpType, record = null) => {
+            if (window.TariffGuard) {
+                const itemName = window.TariffGuard.resolveJumpTypeItemName(jumpType, window.TariffGuard.getEffectiveMaestroForRecord(record));
+                const priceFromMaestro = window.TariffGuard.getPriceForRecord(record, itemName);
+                if (priceFromMaestro > 0) return priceFromMaestro;
+            }
+            return basePrices[jumpType] || 0;
+        };
+
         // DOM Elements
         const qtyInput = document.getElementById('qty-people');
         const tabsContainer = document.getElementById('passenger-tabs');
@@ -333,11 +342,15 @@ window.Modules.reservations = {
                 }
             });
 
+            const availableT = Math.max(0, totalT - usedT);
+            const availableF = Math.max(0, totalF - usedF);
+            const availableC = Math.max(0, totalC - usedC);
             return {
-                totalT, usedT, availableT: totalT - usedT,
-                totalF, usedF, availableF: totalF - usedF,
-                totalC, usedC, availableC: totalC - usedC,
-                total: totalT + totalF + totalC
+                totalT, usedT, availableT,
+                totalF, usedF, availableF,
+                totalC, usedC, availableC,
+                total: totalT + totalF + totalC,
+                available: availableT + availableF + availableC
             };
         }
 
@@ -356,7 +369,7 @@ window.Modules.reservations = {
             while(passengers.length < count) {
                 passengers.push({
                     name: '', doc: '', phone: '', email: '', dob: '', jumpdate: '',
-                    cortesia: false, manualPrice: basePrices[globalJumptype.value] || 1500000, discount: 0,
+                    cortesia: false, manualPrice: getBasePriceForJumpType(globalJumptype.value, null) || 1500000, discount: 0,
                     adiciones: {},
                     comisionTo: '', comisionVal: 0, payMethod: 'Efectivo'
                 });
@@ -596,6 +609,7 @@ window.Modules.reservations = {
                     passengers[activeIndex].dob = pDob.value;
                 }
                 
+                renderAdicionesUI();
                 calculateGlobal();
                 alert('¡Pasajero encontrado! Datos e información financiera sincronizados.');
             } else {
@@ -622,7 +636,8 @@ window.Modules.reservations = {
             } else {
                 fBasePrice.readOnly = true;
                 fBasePrice.style.background = 'var(--bg-surface-hover)';
-                const base = basePrices[globalJumptype.value] || 0;
+                const hasLockedBase = p.id && p.financiera && typeof p.financiera.manualPrice === 'number' && p.financiera.manualPrice > 0 && (!p.type || p.type === globalJumptype.value);
+                const base = hasLockedBase ? p.financiera.manualPrice : getBasePriceForJumpType(globalJumptype.value, p);
                 fBasePrice.value = formatCurrency(base);
                 p.manualPrice = base; // Keep it in sync
                 containerCortesiaObs.style.display = 'none';
@@ -640,15 +655,19 @@ window.Modules.reservations = {
                 if (p.cortesia) {
                     pTotal += p.manualPrice;
                 } else {
-                    pTotal += basePrices[globalJumptype.value] || 0;
+                    const hasLockedBase = p.id && p.financiera && typeof p.financiera.manualPrice === 'number' && p.financiera.manualPrice > 0 && (!p.type || p.type === globalJumptype.value);
+                    pTotal += hasLockedBase ? p.financiera.manualPrice : getBasePriceForJumpType(globalJumptype.value, p);
                 }
                 
-                if (p.adiciones && window.AppData && window.AppData.maestroValores) {
+                if (p.adiciones) {
+                    const effectiveMaestro = window.TariffGuard ? window.TariffGuard.getEffectiveMaestroForRecord(p) : (window.AppData?.maestroValores || []);
                     for (const [key, val] of Object.entries(p.adiciones)) {
                         if (val === 'si') {
-                            const mItem = window.AppData.maestroValores.find(m => m.name === key);
-                            if (mItem) {
-                                pTotal += parseCurrency(mItem.price);
+                            if (window.TariffGuard) {
+                                pTotal += window.TariffGuard.getPriceForRecord(p, key);
+                            } else {
+                                const mItem = effectiveMaestro.find(m => m.name === key);
+                                if (mItem) pTotal += parseCurrency(mItem.price);
                             }
                         }
                     }
@@ -741,7 +760,7 @@ window.Modules.reservations = {
         // When Jump Type or Cortesia changes, we might need to update the base price UI
         globalJumptype.addEventListener('change', (e) => {
             const todayStr = new Date().toLocaleDateString('en-CA');
-            if(e.target.value === 'funjumper') {
+            if(e.target.value === 'Fun Jumper' || e.target.value === 'funjumper') {
                 pJumpDate.value = todayStr;
                 pJumpDate.min = todayStr;
                 pJumpDate.max = todayStr;
@@ -862,9 +881,13 @@ window.Modules.reservations = {
             }
             for (const [dateStr, count] of Object.entries(dateCounts)) {
                 const cap = getAvailableCapacityForDate(dateStr);
-                if (count > cap.available) {
-                    alert(`¡Error de Capacidad!\nNo hay suficientes cupos disponibles para la fecha ${dateStr}.\nSolicitados: ${count}, Disponibles: ${cap.available}`);
-                    return;
+                if (cap.total > 0) {
+                    const jType = globalJumptype.value;
+                    const availForType = jType === 'Copiloto' ? cap.availableC : (jType === 'Fun Jumper' ? cap.availableF : cap.availableT);
+                    if (count > availForType) {
+                        alert(`¡Error de Capacidad!\nNo hay suficientes cupos disponibles (${jType}) para la fecha ${dateStr}.\nSolicitados: ${count}, Disponibles: ${availForType}`);
+                        return;
+                    }
                 }
             }
             
@@ -903,11 +926,15 @@ window.Modules.reservations = {
                 }
                 
                 let pTotal = p.manualPrice || 0;
-                if (p.adiciones && window.AppData && window.AppData.maestroValores) {
+                if (p.adiciones) {
                     for (const [key, val] of Object.entries(p.adiciones)) {
                         if (val === 'si') {
-                            const mItem = window.AppData.maestroValores.find(m => m.name === key);
-                            if (mItem) pTotal += parseCurrency(mItem.price);
+                            if (window.TariffGuard) {
+                                pTotal += window.TariffGuard.getPriceForRecord(p, key);
+                            } else if (window.AppData && window.AppData.maestroValores) {
+                                const mItem = window.AppData.maestroValores.find(m => m.name === key);
+                                if (mItem) pTotal += parseCurrency(mItem.price);
+                            }
                         }
                     }
                 }
@@ -919,10 +946,16 @@ window.Modules.reservations = {
                 let abonoVal = parseCurrency(globalAbono.value);
                 let newAbono = globalFullPay.value === 'si' ? Math.max(0, pTotal - currentTotalPaid) : Math.round(abonoVal / passengers.length);
                 let finalTotalPaid = currentTotalPaid + newAbono; // Accrue payments
+                const createdAt = p.createdAt || new Date().toISOString();
+                const tariffSnapshot = (p.tariffSnapshot && Array.isArray(p.tariffSnapshot.items) && p.tariffSnapshot.items.length > 0)
+                    ? p.tariffSnapshot
+                    : (window.TariffGuard ? window.TariffGuard.buildTariffSnapshot() : null);
                 
                 finalPax.push({
                     ...p, // preserve all existing properties like weight, paxStatus, etc
                     id: paxId,
+                    createdAt,
+                    tariffSnapshot,
                     name: `${p.name} ${p.lastname || ''}`.trim(),
                     lastname: p.lastname || '',
                     doc: p.doc,
@@ -946,6 +979,7 @@ window.Modules.reservations = {
                     financiera: {
                         ...(p.financiera || {}),
                         manualPrice: p.manualPrice,
+                        totalValue: pTotal,
                         cortesiaObs: p.cortesiaObs || '',
                         discount: p.discount,
                         comisionTo: p.comisionTo,
@@ -971,6 +1005,7 @@ window.Modules.reservations = {
                 }
             });
             if (window.saveAppData) window.saveAppData();
+            if (window.PaymentAlertsHelper) window.PaymentAlertsHelper.runAutoCheckOnLoad();
 
             alert('¡Reserva Guardada exitosamente!\nSe ha enviado el Token OTP y el enlace al Portal de Autogestión (B2C) al correo y WhatsApp registrado.\n\nEnlace enviado al cliente: https://fraternoparacaidismo.com/autogestion\n\nLos pasajeros ya están disponibles en el Check-in y Calendario.');
             
@@ -985,13 +1020,17 @@ window.Modules.reservations = {
             const container = document.getElementById('dynamic-adiciones-container');
             container.innerHTML = '';
             
-            if (!window.AppData || !window.AppData.maestroValores) return;
+            const currentPax = passengers[activeIndex];
+            const effectiveMaestro = window.TariffGuard
+                ? window.TariffGuard.getEffectiveMaestroForRecord(currentPax)
+                : (window.AppData && window.AppData.maestroValores ? window.AppData.maestroValores : []);
+            if (!effectiveMaestro || effectiveMaestro.length === 0) return;
 
             let itemsToShow = [];
             if (globalJumptype.value === 'Fun Jumper') {
-                itemsToShow = window.AppData.maestroValores;
+                itemsToShow = effectiveMaestro;
             } else {
-                itemsToShow = window.AppData.maestroValores.filter(v => 
+                itemsToShow = effectiveMaestro.filter(v => 
                     ['Cámara 360', 'Cámara Externa', 'Cámara Go-Pro'].includes(v.name)
                 );
             }
@@ -1021,16 +1060,6 @@ window.Modules.reservations = {
                     calculateGlobal();
                 });
             });
-
-            // attach event listeners
-            document.querySelectorAll('.dynamic-adic').forEach(chk => {
-                chk.addEventListener('change', (e) => {
-                    const p = passengers[activeIndex];
-                    if (!p.adiciones) p.adiciones = {};
-                    p.adiciones[e.target.dataset.name] = e.target.checked ? 'si' : 'no';
-                    calculateGlobal();
-                });
-            });
             
             // Set current passenger values
             const p = passengers[activeIndex];
@@ -1047,16 +1076,19 @@ window.Modules.reservations = {
 
         // Init
         // Ensure maestroValores exists (if directly routed without visiting config)
-        if (!window.AppData.maestroValores) {
+        if (window.TariffGuard) {
+            window.TariffGuard.ensureVersionMetadata();
+        } else if (!window.AppData.maestroValores) {
             window.AppData.maestroValores = [
-                {name: 'Valor KG Extra', price: '5.000'}, {name: 'Honorario Salto Tandem', price: '1.500.000'},
-                {name: 'Salto AFF', price: '0'}, {name: 'Salto AFF 1', price: '0'}, {name: 'Salto AFF 2', price: '0'},
-                {name: 'Cámara Externa', price: '250.000'}, {name: 'Cámara Go-Pro', price: '100.000'},
-                {name: 'Cámara 360', price: '150.000'}, {name: 'Empaque', price: '0'}, {name: 'Teoría AFF', price: '0'},
-                {name: 'Hora de Teoría', price: '0'}, {name: 'Coach', price: '0'}, {name: 'Curso de Empaque', price: '0'},
-                {name: 'Empaque de Reserva', price: '0'}, {name: 'Curso Control Cúpula', price: '0'},
-                {name: 'Acompañamiento Examen Licencia', price: '0'}, {name: 'Curso Aterrizajes en Agua', price: '0'},
-                {name: 'Alquiler de equipo', price: '0'}
+                {name: 'Valor KG Extra', price: '5.000', comision: '0'}, {name: 'Salto Tandem', price: '1.500.000', comision: '0'},
+                {name: 'Fun Jumper', price: '0', comision: '0'}, {name: 'Copiloto', price: '0', comision: '0'},
+                {name: 'Salto AFF', price: '0', comision: '0'}, {name: 'Salto AFF 1', price: '0', comision: '0'}, {name: 'Salto AFF 2', price: '0', comision: '0'},
+                {name: 'Cámara Externa', price: '250.000', comision: '0'}, {name: 'Cámara Go-Pro', price: '100.000', comision: '0'},
+                {name: 'Cámara 360', price: '150.000', comision: '0'}, {name: 'Empaque Tandem', price: '0', comision: '0'}, {name: 'Empaque Escuela', price: '0', comision: '0'},
+                {name: 'Teoría AFF', price: '0', comision: '0'}, {name: 'Hora de Teoría', price: '0', comision: '0'}, {name: 'Coach', price: '0', comision: '0'},
+                {name: 'Curso de Empaque', price: '0', comision: '0'}, {name: 'Empaque de Reserva', price: '0', comision: '0'},
+                {name: 'Curso Control Cúpula', price: '0', comision: '0'}, {name: 'Acompañamiento Examen Licencia', price: '0', comision: '0'},
+                {name: 'Curso Aterrizajes en Agua', price: '0', comision: '0'}, {name: 'Alquiler de equipo', price: '0', comision: '0'}
             ];
         }
 

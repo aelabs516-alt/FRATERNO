@@ -85,21 +85,21 @@ window.Modules.home = {
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid var(--border-color)';
                 tr.innerHTML = `
-                    <td style="padding: 1rem; font-weight: 600;">${pax.vueloNum || '---'}</td>
+                    <td style="padding: 1rem; font-weight: 600;">${escapeHTML(pax.vueloNum || '---')}</td>
                     <td style="padding: 1rem;">
-                        <span class="display-val">${pax.name}</span>
+                        <span class="display-val">${escapeHTML(pax.name || '')}</span>
                     </td>
                     <td style="padding: 1rem;">
-                        <span class="display-val">${pax.instructor}</span>
+                        <span class="display-val">${escapeHTML(pax.instructor || '')}</span>
                     </td>
                     <td style="padding: 1rem;">
-                        <span class="display-val">${pax.aeronave || 'Sin asignar'}</span>
+                        <span class="display-val">${escapeHTML(pax.aeronave || 'Sin asignar')}</span>
                     </td>
                     <td style="padding: 1rem;">
-                        <span class="display-val" style="${paxStatusStyle} padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">${pax.paxStatus}</span>
+                        <span class="display-val" style="${paxStatusStyle} padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">${escapeHTML(pax.paxStatus || '')}</span>
                     </td>
                     <td style="padding: 1rem;">
-                        <span class="display-val" style="${flightStatusStyle} padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">${pax.flightStatus} ${(pax.flightStatus === 'Demorado / Delay' || pax.flightStatus === 'Adelantado / Early') && pax.estimatedTime ? '(' + pax.estimatedTime + ')' : ''}</span>
+                        <span class="display-val" style="${flightStatusStyle} padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">${escapeHTML(pax.flightStatus || '')} ${(pax.flightStatus === 'Demorado / Delay' || pax.flightStatus === 'Adelantado / Early') && pax.estimatedTime ? '(' + escapeHTML(pax.estimatedTime) + ')' : ''}</span>
                     </td>
                 `;
                 tbody.appendChild(tr);

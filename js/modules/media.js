@@ -209,7 +209,7 @@ window.Modules.media = {
 
             // Bind checkboxes
             document.querySelectorAll('.chk-delivery').forEach(chk => {
-                chk.addEventListener('change', (e) => {
+                chk.addEventListener('change', async (e) => {
                     const isChecked = e.target.checked;
                     const paxId = e.target.getAttribute('data-id');
                     const paxObj = window.AppData.passengers.find(p => p.id === paxId);
@@ -223,7 +223,13 @@ window.Modules.media = {
                         modal.style.display = 'flex';
                     } else {
                         // Unchecking requires Admin
-                        const pwd = prompt('Ingrese clave de Administrador para revertir el estado de entrega:');
+                        const pwd = window.showPrompt
+                            ? await window.showPrompt('Ingrese clave de Administrador para revertir el estado de entrega:', { title: 'Revertir Entrega', inputType: 'password', placeholder: 'Contraseña...' })
+                            : prompt('Ingrese clave de Administrador para revertir el estado de entrega:');
+                        if (pwd === null) {
+                            e.target.checked = true;
+                            return;
+                        }
                         let isValid = false;
                         const adminUser = (window.AppData.users || []).find(u => (u.role === 'admin' || u.role === 'Administrador' || u.role === 'SuperAdmin'));
                         if (adminUser && adminUser.password === pwd) {

@@ -500,35 +500,16 @@ window.Modules.inventory = {
             });
 
             document.querySelectorAll('.btn-delete-tandem').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const idx = e.currentTarget.getAttribute('data-idx');
-                    if(confirm('¿Seguro que deseas eliminar este equipo Tándem?')) {
+                    const ok = window.showConfirm ? await window.showConfirm('¿Seguro que deseas eliminar este equipo Tándem?', { title: 'Eliminar Equipo Tándem', type: 'danger' }) : confirm('¿Seguro que deseas eliminar este equipo Tándem?');
+                    if (ok) {
                         window.AppData.tandemRigs.splice(idx, 1);
                         if(window.saveAppData) window.saveAppData();
                         renderTandemsTable(); renderTandemsList();
                     }
                 });
             });
-        }
-
-        function calculateHealth(part) {
-            if (!part) return null;
-            let percentJumps = 0;
-            let percentTime = 0;
-
-            if (part.limitJumps) percentJumps = (part.currentJumps / part.limitJumps) * 100;
-            
-            if (part.limitMonths && part.date) {
-                const start = new Date(part.date);
-                const now = new Date();
-                const diffMonths = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-                percentTime = (diffMonths / part.limitMonths) * 100;
-            }
-
-            const maxPercent = Math.max(percentJumps, percentTime);
-            if (maxPercent >= 100) return 'danger';
-            if (maxPercent >= 90) return 'warning';
-            return 'success';
         }
 
         function renderTandemsList() {
@@ -541,6 +522,12 @@ window.Modules.inventory = {
                 return;
             }
 
+            const colorMap = {
+                'success': 'var(--brand-success)',
+                'warning': 'var(--brand-warning)',
+                'danger': 'var(--brand-danger)'
+            };
+
             rigs.forEach(rig => {
                 let overallStatus = 'success';
                 const partsHtml = ['Contenedor', 'AAD', 'Cúpula Principal', 'Reserva', 'Arnés'].map(partName => {
@@ -550,22 +537,15 @@ window.Modules.inventory = {
                     }
                     
                     const healthData = calculateHealth(part);
-                    let alertHtml = '';
-                    if (healthData.status === 'danger' || healthData.status === 'warning') {
-                        const color = healthData.status === 'danger' ? 'var(--brand-danger)' : 'var(--brand-warning)';
-                        alertHtml = `<div style="color: ${color}; font-size: 0.75rem; font-weight: bold; margin-top:4px; padding: 2px 4px; border: 1px solid ${color}; border-radius: 4px; display: inline-block;">
-                            <i class="fas fa-exclamation-triangle"></i> ${healthData.val}
-                        </div>`;
-                    } else {
-                        alertHtml = `<div style="color: var(--brand-success); font-size: 0.75rem; margin-top:2px;">${healthData.val}</div>`;
-                    }
+                    if (healthData.status === 'danger') overallStatus = 'danger';
+                    else if (healthData.status === 'warning' && overallStatus !== 'danger') overallStatus = 'warning';
                     
                     return `
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 0.3rem 0; border-bottom: 1px dashed var(--border-color);">
                             <span>${partName} (${escapeHTML(part.serial)})</span>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <span style="color: var(--text-secondary);">${part.currentJumps} Saltos</span>
-                                <div style="width: 10px; height: 10px; border-radius: 50%; background: ${colorMap[health]};" title="Estado"></div>
+                                <div style="width: 10px; height: 10px; border-radius: 50%; background: ${colorMap[healthData.status]};" title="Estado: ${escapeHTML(healthData.val)}"></div>
                             </div>
                         </div>
                     `;
@@ -748,9 +728,10 @@ window.Modules.inventory = {
             });
 
             document.querySelectorAll('.btn-del-acc').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const serial = e.currentTarget.getAttribute('data-serial');
-                    if(confirm('¿Eliminar este accesorio?')) {
+                    const ok = window.showConfirm ? await window.showConfirm('¿Eliminar este accesorio?', { title: 'Eliminar Accesorio', type: 'danger' }) : confirm('¿Eliminar este accesorio?');
+                    if (ok) {
                         window.AppData.inventory = window.AppData.inventory.filter(i => i.serial !== serial);
                         if(window.saveAppData) window.saveAppData();
                         renderAccesorios();
@@ -880,8 +861,9 @@ window.Modules.inventory = {
             modalFun.style.display = 'flex';
         };
 
-        window.deleteFun = (idx) => {
-            if (confirm('¿Seguro que deseas eliminar este equipo Fun Jumper?')) {
+        window.deleteFun = async (idx) => {
+            const ok = window.showConfirm ? await window.showConfirm('¿Seguro que deseas eliminar este equipo Fun Jumper?', { title: 'Eliminar Equipo Fun Jumper', type: 'danger' }) : confirm('¿Seguro que deseas eliminar este equipo Fun Jumper?');
+            if (ok) {
                 window.AppData.funRigs.splice(idx, 1);
                 if (window.saveAppData) window.saveAppData();
                 renderFunTable();
