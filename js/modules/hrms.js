@@ -4,7 +4,7 @@ window.Modules.hrms = {
     render: (container) => {
         container.innerHTML = `
             <div class="hrms-module" style="display: flex; flex-direction: column; height: 100%; gap: 1rem;">
-                <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="card hrms-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <div style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--brand-blue), var(--brand-blue-light)); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                             <i class="fas fa-users"></i>
@@ -17,7 +17,7 @@ window.Modules.hrms = {
                     <button class="btn btn-primary" id="btn-new-emp" style="padding: 0.75rem 1.5rem;"><i class="fas fa-user-plus"></i> Nuevo Miembro</button>
                 </div>
                 
-                <div style="display: flex; flex: 1; gap: 1.5rem; overflow: hidden; flex-wrap: wrap;">
+                <div class="hrms-main-split" style="display: flex; flex: 1; gap: 1.5rem; overflow: hidden; flex-wrap: wrap;">
                     
                     <!-- Directorio -->
                     <div class="card" style="flex: 2; display: flex; flex-direction: column; min-width: 350px;">

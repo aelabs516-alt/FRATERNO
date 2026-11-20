@@ -6,27 +6,27 @@ window.Modules.autogestion = {
             <div style="--bg-main: #0f172a; --text-primary: #ffffff; --text-secondary: #cbd5e1; --border-color: rgba(255, 255, 255, 0.1); --bg-surface: rgba(15, 23, 42, 0.5); --bg-surface-hover: rgba(255, 255, 255, 0.05); --glass-bg: rgba(30, 41, 59, 0.7); --brand-success: #10b981; --brand-action: #3b82f6; min-height: 100vh; background: var(--bg-main); color: var(--text-primary); display: flex; flex-direction: column; font-family: 'Inter', sans-serif; overflow-y: auto;">
                 
                 <!-- Hero Section with Parallax Effect -->
-                <div style="position: relative; padding: 5rem 2rem; text-align: center; overflow: hidden; background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)), url('https://images.unsplash.com/photo-1520114878144-6123749969dd?auto=format&fit=crop&q=80&w=2000') center/cover; background-attachment: fixed;">
+                <div class="ag-hero" style="position: relative; padding: 5rem 2rem; text-align: center; overflow: hidden; background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)), url('https://images.unsplash.com/photo-1520114878144-6123749969dd?auto=format&fit=crop&q=80&w=2000') center/cover; background-attachment: fixed;">
                     <div style="position: relative; z-index: 10; max-width: 800px; margin: 0 auto; animation: fadeDown 1s ease-out;">
-                        <h1 style="font-size: 3.5rem; font-weight: 900; margin-bottom: 1rem; letter-spacing: -1px; text-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                        <h1 class="ag-hero-title" style="font-size: 3.5rem; font-weight: 900; margin-bottom: 1rem; letter-spacing: -1px; text-shadow: 0 4px 10px rgba(0,0,0,0.5);">
                             FRATERNO <span style="background: linear-gradient(to right, #3b82f6, #06b6d4); -webkit-background-clip: text; color: transparent;">SKYDIVING</span>
                         </h1>
-                        <p style="font-size: 1.25rem; color: var(--text-secondary); margin-bottom: 2.5rem; line-height: 1.6;">
+                        <p class="ag-hero-sub" style="font-size: 1.25rem; color: var(--text-secondary); margin-bottom: 2.5rem; line-height: 1.6;">
                             Reserva tu salto Tándem o Deportivo de forma rápida y segura. Disfruta de la mejor zona de salto con instructores certificados y vistas increíbles.
                         </p>
                     </div>
                 </div>
 
                 <!-- Booking Section -->
-                <div id="booking-section" style="padding: 4rem 2rem; background: var(--bg-main); position: relative;">
+                <div id="booking-section" class="ag-booking-wrap" style="padding: 4rem 2rem; background: var(--bg-main); position: relative;">
                     <!-- Decorative Orbs -->
                     <div style="position: absolute; top: 10%; left: -5%; width: 300px; height: 300px; background: rgba(59, 130, 246, 0.15); border-radius: 50%; filter: blur(50px); pointer-events: none;"></div>
                     <div style="position: absolute; bottom: 10%; right: -5%; width: 300px; height: 300px; background: rgba(16, 185, 129, 0.1); border-radius: 50%; filter: blur(50px); pointer-events: none;"></div>
 
                     <div style="max-width: 700px; margin: 0 auto; position: relative; z-index: 10;">
-                        <div style="background: var(--glass-bg); backdrop-filter: blur(15px); border: 1px solid var(--border-color); border-radius: 24px; padding: 3rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+                        <div class="ag-card" style="background: var(--glass-bg); backdrop-filter: blur(15px); border: 1px solid var(--border-color); border-radius: 24px; padding: 3rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
                                 <!-- Selector de Idioma -->
-                                <div style="position: absolute; top: 1rem; right: 2rem;">
+                                <div class="ag-lang-box" style="position: absolute; top: 1rem; right: 2rem;">
                                     <select id="ag-lang-select" style="background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 8px;">
                                         <option value="es">Español</option>
                                         <option value="en">English</option>
@@ -39,7 +39,7 @@ window.Modules.autogestion = {
                                 <!-- Detalles del Salto -->
                                 <h3 style="color: var(--brand-action); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem;"><i class="fas fa-parachute-box"></i> Detalle de Salto</h3>
                                 
-                                <div style="display: flex; gap: 1.5rem; margin-bottom: 1.5rem;">
+                                <div class="ag-type-row" style="display: flex; gap: 1.5rem; margin-bottom: 1.5rem;">
                                     <div class="form-group" style="flex: 2; margin-bottom: 0;">
                                         <label style="color: var(--text-secondary); font-size: 0.9rem;" data-i18n="jump_type">Tipo de Experiencia</label>
                                         <select id="ag-type" class="form-control" style="background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary);">

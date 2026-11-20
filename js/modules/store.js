@@ -5,7 +5,7 @@ window.Modules.store = {
             <h2><i class="fas fa-shopping-basket"></i> Ventas Tienda</h2>
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Punto de Venta para productos físicos de la tienda y merchandising.</p>
             
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+            <div class="store-split" style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
                 
                 <!-- Catalogo -->
                 <div class="card" style="background: var(--bg-surface);">

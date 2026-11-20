@@ -65,11 +65,11 @@ window.Modules.fids = {
                     </div>
                     
                     <!-- Central Logo -->
-                    <div style="position: absolute; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center;">
+                    <div class="fids-center-logo" style="position: absolute; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center;">
                         <img src="img/logo-fids.png" alt="Fraterno Logo" style="height: 140px; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.8));">
                     </div>
 
-                    <div style="display: flex; gap: 2rem; align-items: center;">
+                    <div class="fids-right-cluster" style="display: flex; gap: 2rem; align-items: center;">
                         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
                             <div style="font-size: 2.2rem; font-weight: bold; color: #f8fafc; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 0.75rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">
                                 <i class="far fa-clock" style="color: #38bdf8;"></i>
@@ -143,7 +143,7 @@ window.Modules.fids = {
                     <div id="fids-closed-reason-display" style="display: none; font-size: 1.05rem; font-weight: 800; color: #fef08a; background: rgba(0,0,0,0.35); border: 1px solid rgba(250, 204, 21, 0.55); border-radius: 20px; padding: 0.25rem 1.25rem; letter-spacing: 0.6px;"></div>
                 </div>
 
-                <div style="flex: 1; overflow: hidden; padding: 1rem 1rem 0 1rem;">
+                <div class="fids-table-wrap" style="flex: 1; overflow: hidden; padding: 1rem 1rem 0 1rem;">
                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 1.15rem;">
                         <thead>
                             <tr style="background-color: #000000; color: #94a3b8; border-bottom: 2px solid #475569; text-transform: uppercase; font-size: 1rem; letter-spacing: 1px;">

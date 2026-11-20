@@ -183,6 +183,19 @@ class MockElement {
     }
 
     set innerHTML(html) {
+        if (this.children.length > 0 && this.ownerDocument) {
+            const toRemove = new Set();
+            const collect = (node) => {
+                toRemove.add(node);
+                if (node.id && this.ownerDocument.elementsById.get(node.id) === node) {
+                    this.ownerDocument.elementsById.delete(node.id);
+                }
+                (node.children || []).forEach(collect);
+            };
+            this.children.forEach(collect);
+            this.ownerDocument.allElements = this.ownerDocument.allElements.filter(el => !toRemove.has(el));
+        }
+        this.children = [];
         this._innerHTML = String(html ?? '');
         this._textContent = this._innerHTML.replace(/<[^>]*>/g, '');
         if (this.ownerDocument) {
@@ -1877,4 +1890,117 @@ test('3.12 [Asignación de Flota] Migración de vuelos entre aeronaves: 1 vuelo,
     assert.equal(win.AppData.asignacionFlota.filter(f => f.id_aeronave === 'plane_A').length, 0, 'Al migrar TODOS no deben quedar vuelos en la aeronave origen');
     assert.equal(win.AppData.asignacionFlota.find(f => f.id === 'f_far_1').id_aeronave, 'plane_C', 'El vuelo futuro f_far_1 debe haberse migrado a HK-3003');
     assert.equal(win.AppData.passengers.find(p => p.id === 'p_4').aeronave, 'HK-3003', 'El pasajero del vuelo lejano debe haberse migrado a HK-3003');
+});
+
+test('3.13 [Visualización Adaptativa] Detección Computador / Tablet / Celular, menú lateral táctil y adaptación sin solapamientos ni desbordes', () => {
+    const { win, doc } = buildSPAContext();
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({ name: 'Admin', role: 'Administrador' }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+
+    // 1. Detección Computador (Desktop 1440x900)
+    win.innerWidth = 1440;
+    win.innerHeight = 900;
+    win.navigator = { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0', platform: 'Win32', maxTouchPoints: 0 };
+    let dev = win.detectDevice();
+    assert.equal(dev.type, 'desktop');
+    assert.equal(win.isDesktopDevice, true);
+    assert.equal(win.isTabletDevice, false);
+    assert.equal(win.isMobileDevice, false);
+    assert.ok(doc.body.classList.contains('device-desktop'));
+    assert.equal(doc.body.getAttribute('data-device'), 'desktop');
+    assert.equal(doc.body.getAttribute('data-orientation'), 'landscape');
+
+    // 2. Detección Tablet (iPad vertical 820x1180)
+    win.innerWidth = 820;
+    win.innerHeight = 1180;
+    win.navigator = { userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)', platform: 'iPad', maxTouchPoints: 5 };
+    dev = win.detectDevice();
+    assert.equal(dev.type, 'tablet');
+    assert.equal(win.isTabletDevice, true);
+    assert.ok(doc.body.classList.contains('device-tablet'));
+    assert.ok(!doc.body.classList.contains('device-desktop'));
+    assert.equal(doc.body.getAttribute('data-device'), 'tablet');
+    assert.equal(doc.body.getAttribute('data-orientation'), 'portrait');
+
+    // 2b. Detección iPadOS modo escritorio (MacIntel + maxTouchPoints > 1, 1180x820)
+    win.innerWidth = 1180;
+    win.innerHeight = 820;
+    win.navigator = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', platform: 'MacIntel', maxTouchPoints: 5 };
+    dev = win.detectDevice();
+    assert.equal(dev.type, 'tablet', 'iPadOS con userAgent de Mac y pantalla táctil debe identificarse como tablet');
+    assert.equal(dev.orientation, 'landscape');
+
+    // 3. Detección Celular (iPhone 390x844 vertical y 844x390 horizontal)
+    win.innerWidth = 390;
+    win.innerHeight = 844;
+    win.navigator = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148', platform: 'iPhone', maxTouchPoints: 5 };
+    dev = win.detectDevice();
+    assert.equal(dev.type, 'mobile');
+    assert.equal(win.isMobileDevice, true);
+    assert.ok(doc.body.classList.contains('device-mobile'));
+    assert.equal(doc.body.getAttribute('data-device'), 'mobile');
+
+    win.innerWidth = 844;
+    win.innerHeight = 390;
+    dev = win.detectDevice();
+    assert.equal(dev.type, 'mobile', 'Un teléfono en modo horizontal (844x390) debe seguir identificándose como celular');
+    assert.equal(dev.orientation, 'landscape');
+
+    // 4. Cajón lateral (drawer) y cierre automático al cambiar de ruta o volver a desktop
+    const sidebar = doc.getElementById('sidebar');
+    const backdrop = doc.getElementById('sidebar-backdrop');
+    assert.ok(sidebar && backdrop, 'Deben existir #sidebar y #sidebar-backdrop en el DOM');
+    sidebar.classList.add('open');
+    backdrop.classList.add('open');
+
+    // Al navegar por el router, se cierra el menú móvil/tablet y no se sobrescribe padding inline con '2rem'
+    win.location.hash = '#/registro-salto';
+    win.router();
+    assert.ok(!sidebar.classList.contains('open'), 'Al navegar debe cerrarse el menú lateral abierto');
+    assert.ok(!backdrop.classList.contains('open'));
+    const mainContent = doc.querySelector('.main-content');
+    assert.equal(mainContent.style.padding, '', 'router() no debe forzar padding inline 2rem que rompa móvil/tablet');
+
+    // 5. Verificación del mejorador adaptativo (applyResponsiveLayout) en módulos críticos
+    const wideGrids = doc.querySelectorAll('.resp-auto-grid-wide');
+    assert.ok(wideGrids.length > 0, 'Registro de Salto debe etiquetar grids minmax(400px) como .resp-auto-grid-wide');
+
+    // Calendario Reservas: mantiene 7 columnas (.resp-calendar-grid) en lugar de colapsar a 1 columna
+    win.location.hash = '#/reservas';
+    win.router();
+    const calGrids = doc.querySelectorAll('.resp-calendar-grid');
+    assert.ok(calGrids.length >= 2, 'Calendario de Reservas debe mantener etiqueta .resp-calendar-grid');
+
+    // FIDS: logo central etiquetado (.fids-center-logo) para evitar solapamiento en móvil/tablet
+    win.location.hash = '#/fids';
+    win.router();
+    assert.ok(doc.querySelector('.fids-center-logo'), 'FIDS debe contar con .fids-center-logo para flujo adaptativo');
+    assert.ok(doc.querySelector('.fids-table-wrap'), 'FIDS debe contar con .fids-table-wrap para scroll táctil');
+
+    // Asignación de Flota: el Gantt NO debe colapsarse a 1 columna sino mantenerse desplazable
+    win.location.hash = '#/flota';
+    win.router();
+    const ganttHeader = doc.getElementById('gantt-header');
+    assert.ok(ganttHeader && !ganttHeader.classList.contains('resp-grid-2'), 'El Gantt debe preservar sus columnas y usar scroll horizontal en móvil/tablet');
+
+    // Check-in: tablero Kanban etiquetado para 2x2 en tablet y apilado en celular
+    win.location.hash = '#/checkin';
+    win.router();
+    assert.ok(doc.querySelector('.checkin-kanban-board'), 'Check-in debe incluir clase .checkin-kanban-board');
+
+    // Al volver a Desktop, el cajón se cierra automáticamente
+    sidebar.classList.add('open');
+    win.innerWidth = 1440;
+    win.innerHeight = 900;
+    win.navigator = { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', platform: 'Win32', maxTouchPoints: 0 };
+    win.detectDevice();
+    assert.ok(!sidebar.classList.contains('open'), 'Al volver a escritorio el menú drawer debe cerrarse');
+
+    // 6. Integridad de css/styles.css (llaves balanceadas y reglas tablet + celular presentes)
+    const cssText = fs.readFileSync(path.join(__dirname, '../css/styles.css'), 'utf8');
+    const opens = (cssText.match(/\{/g) || []).length;
+    const closes = (cssText.match(/\}/g) || []).length;
+    assert.equal(opens, closes, `css/styles.css debe tener llaves CSS balanceadas (${opens} vs ${closes})`);
+    assert.ok(cssText.includes('body.device-tablet') && cssText.includes('body.device-mobile'));
+    assert.ok(cssText.includes('.fids-center-logo') && cssText.includes('.checkin-kanban-board') && cssText.includes('#gantt-container'));
 });

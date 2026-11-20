@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0c2331">
     <title>FRATERNO - Sistema de Reservas y Manifiesto</title>
+    <!-- Favicon & App Icons -->
+    <link rel="icon" href="./favicon.ico?v=1.0" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/favicon-32x32.png?v=1.0">
+    <link rel="icon" type="image/png" sizes="192x192" href="./img/favicon-192x192.png?v=1.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/apple-touch-icon.png?v=1.0">
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,16 +36,16 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Main CSS -->
-    <link rel="stylesheet" href="./css/styles.css?v=2.0">
+    <link rel="stylesheet" href="./css/styles.css?v=2.9">
 </head>
 <body class="light-mode">
     
     <!-- System Header -->
     <header class="system-header glass-header" id="main-header">
         <div class="header-left">
-            <button id="mobile-menu-btn" class="icon-btn mobile-only"><i class="fas fa-bars"></i></button>
+            <button id="mobile-menu-btn" class="icon-btn mobile-only" aria-label="Abrir menú de navegación" aria-expanded="false"><i class="fas fa-bars"></i></button>
             <div class="logo" style="display: flex; align-items: center; justify-content: center; padding-left: 0.5rem;">
-                <img src="img/logo.png" alt="Fraterno Paracaidismo" style="height: 84px; width: auto; object-fit: contain;">
+                <img src="img/logo.png" alt="Fraterno Paracaidismo" class="header-logo-img" style="height: 84px; width: auto; object-fit: contain;">
             </div>
         </div>
         <div class="header-center clock-widget" style="flex-direction: column; align-items: center; gap: 0.1rem; line-height: 1.2;">
@@ -60,7 +66,7 @@
             
             <!-- Dark Mode Switch -->
             <div class="theme-switch-wrapper">
-                <span style="font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; color: var(--text-primary);">MODO OSCURO</span>
+                <span class="theme-label" style="font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; color: var(--text-primary);">MODO OSCURO</span>
                 <label class="theme-switch" for="checkbox-theme">
                     <input type="checkbox" id="checkbox-theme" />
                     <div class="slider round">
@@ -72,6 +78,8 @@
 
         </div>
     </header>
+
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
 
     <div class="app-container" id="app-wrapper">
         <!-- Sidebar Navigation -->
@@ -122,30 +130,30 @@
     </div>
 
     <!-- Scripts -->
-    <script src="./js/components.js?v=2.8"></script>
+    <script src="./js/components.js?v=2.9"></script>
     <script src="./js/modules/login.js?v=2.4"></script>
-    <script src="./js/modules/home.js?v=2.4"></script>
+    <script src="./js/modules/home.js?v=2.9"></script>
     <script src="./js/modules/dashboard.js?v=2.4"></script>
-    <script src="./js/modules/booking.js?v=2.8"></script>
+    <script src="./js/modules/booking.js?v=2.9"></script>
 
     <script src="./js/modules/reservations.js?v=2.8"></script>
     <script src="./js/modules/b2c-form.js?v=2.8"></script>
-    <script src="./js/modules/billing.js?v=2.8"></script>
-    <script src="./js/modules/store.js?v=2.4"></script>
-    <script src="./js/modules/checkin.js?v=2.8"></script>
+    <script src="./js/modules/billing.js?v=2.9"></script>
+    <script src="./js/modules/store.js?v=2.9"></script>
+    <script src="./js/modules/checkin.js?v=2.9"></script>
     <script src="./js/modules/manifest.js?v=2.7"></script>
     <script src="./js/modules/settings.js?v=2.8"></script>
     <script src="./js/modules/historySearch.js?v=2.4"></script>
 
-    <script src="./js/modules/autogestion.js?v=2.8"></script>
-    <script src="./js/modules/fleet.js?v=2.8"></script>
-    <script src="./js/modules/hrms.js?v=2.4"></script>
+    <script src="./js/modules/autogestion.js?v=2.9"></script>
+    <script src="./js/modules/fleet.js?v=2.9"></script>
+    <script src="./js/modules/hrms.js?v=2.9"></script>
     <script src="./js/modules/inventory.js?v=2.4"></script>
     <script src="./js/modules/assignment.js?v=2.4"></script>
-    <script src="./js/modules/finance.js?v=2.4"></script>
-    <script src="./js/modules/fids.js?v=2.7"></script>
+    <script src="./js/modules/finance.js?v=2.9"></script>
+    <script src="./js/modules/fids.js?v=2.9"></script>
     <script src="./js/modules/media.js?v=2.4"></script>
-    <script src="./js/modules/invoicing.js?v=2.8"></script>
-    <script src="./js/app.js?v=2.8"></script>
+    <script src="./js/modules/invoicing.js?v=2.9"></script>
+    <script src="./js/app.js?v=2.9"></script>
 </body>
 </html>

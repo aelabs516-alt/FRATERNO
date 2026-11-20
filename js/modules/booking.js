@@ -33,9 +33,9 @@ window.Modules.booking = {
                     </button>
                 </div>
 
-                <div style="display: flex; flex: 1; gap: 1rem; overflow: hidden; flex-wrap: wrap;">
+                <div class="booking-main-split" style="display: flex; flex: 1; gap: 1rem; overflow: hidden; flex-wrap: wrap;">
                     <!-- Calendar Section -->
-                    <div class="card" style="flex: 2; display: flex; flex-direction: column; overflow: hidden; min-width: 350px;">
+                    <div class="card booking-calendar-card" style="flex: 2; display: flex; flex-direction: column; overflow: hidden; min-width: 350px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <button class="btn" id="booking-prev-month" style="background: var(--bg-surface-hover);"><i class="fas fa-chevron-left"></i></button>
                             <h2 id="booking-month-year" style="margin: 0; color: var(--text-primary);"></h2>
@@ -51,7 +51,7 @@ window.Modules.booking = {
                     </div>
 
                     <!-- Side Panel: Day Details -->
-                    <div class="card" style="flex: 1; display: flex; flex-direction: column; min-width: 300px; max-height: calc(100vh - 120px); overflow: hidden;">
+                    <div class="card booking-side-card" style="flex: 1; display: flex; flex-direction: column; min-width: 300px; max-height: calc(100vh - 120px); overflow: hidden;">
                         <h3 id="booking-day-title" style="margin-top: 0; color: var(--text-primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem;">Selecciona un día</h3>
                         
                         <div id="booking-day-capacity" style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-main); border-radius: var(--border-radius-md);">

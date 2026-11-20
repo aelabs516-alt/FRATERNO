@@ -13,7 +13,7 @@ window.Modules.invoicing = {
             <div id="content-factura" class="billing-content" style="display: block;">
 
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+                <div class="invoicing-split" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
                     <!-- LEFT PANE: Form -->
                     <div class="card" style="margin-bottom: 0;">
                         <h3 style="margin-bottom: 1rem; color: var(--brand-action);"><i class="fas fa-user-edit"></i> Información del Cliente</h3>

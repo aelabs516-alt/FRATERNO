@@ -348,10 +348,49 @@ button {
    ========================================================================== */
 .main-content {
     flex: 1;
+    min-width: 0;
     overflow-y: auto;
     padding: 2rem;
     background-color: var(--bg-main);
     position: relative;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 16, 23, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 1040;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.sidebar-backdrop.open {
+    display: block;
+    opacity: 1;
+}
+
+.resp-table-scroll {
+    width: 100%;
+    max-width: 100%;
+}
+
+body.fullscreen-route .system-header,
+body.fullscreen-route .sidebar,
+body.fullscreen-route .sidebar-backdrop {
+    display: none !important;
+}
+
+body.fullscreen-route .app-container {
+    margin-top: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+}
+
+body.fullscreen-route .main-content {
+    padding: 0 !important;
 }
 
 /* ==========================================================================
@@ -446,36 +485,8 @@ button {
 }
 
 /* ==========================================================================
-   Responsive & Mobile
+   Responsive & Adaptive Breakpoints (ver sección completa al final del archivo)
    ========================================================================== */
-@media (max-width: 1024px) {
-    .header-center {
-        display: none; /* Hide clock on small screens to save space */
-    }
-}
-
-@media (max-width: 768px) {
-    .mobile-only {
-        display: flex;
-    }
-    
-    .sidebar {
-        position: fixed;
-        left: 0;
-        top: var(--header-height);
-        height: calc(100vh - var(--header-height));
-        transform: translateX(-100%);
-    }
-    
-    .sidebar.open {
-        transform: translateX(0);
-        box-shadow: var(--shadow-lg);
-    }
-    
-    .main-content {
-        padding: 1rem;
-    }
-}
 
 /* ==========================================================================
    B2C Portal specific overrides
@@ -1057,5 +1068,695 @@ button {
     height: 16px;
     accent-color: var(--brand-action);
     cursor: pointer;
+}
+
+/* ==========================================================================
+   SISTEMA ADAPTATIVO: TABLET (768px-1024px / .device-tablet) Y CELULAR (<=767px / .device-mobile)
+   Escritorio (.device-desktop / >=1025px) permanece 100% intacto.
+   ========================================================================== */
+
+/* --- Reglas compartidas Tablet + Celular --- */
+body.device-tablet,
+body.device-mobile {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+body.device-tablet .mobile-only,
+body.device-mobile .mobile-only {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+body.device-tablet .app-container,
+body.device-mobile .app-container {
+    width: 100%;
+    max-width: 100vw;
+    height: calc(100vh - var(--header-height) - 0.5rem);
+    height: calc(100dvh - var(--header-height) - 0.5rem);
+    margin-top: calc(var(--header-height) + 0.5rem);
+    overflow: hidden;
+}
+
+body.device-tablet .sidebar,
+body.device-mobile .sidebar {
+    position: fixed;
+    left: 0;
+    top: calc(var(--header-height) + 0.5rem);
+    height: calc(100vh - var(--header-height) - 0.5rem);
+    height: calc(100dvh - var(--header-height) - 0.5rem);
+    width: min(280px, 84vw);
+    transform: translateX(-105%);
+    z-index: 1100;
+    box-shadow: none;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.device-tablet .sidebar.open,
+body.device-mobile .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+body.device-tablet .main-content,
+body.device-mobile .main-content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+body.device-tablet #app-view,
+body.device-mobile #app-view {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+body.device-tablet .main-content img,
+body.device-mobile .main-content img,
+body.device-tablet .main-content canvas,
+body.device-mobile .main-content canvas,
+body.device-tablet .main-content video,
+body.device-mobile .main-content video {
+    max-width: 100%;
+}
+
+body.device-tablet .resp-table-scroll,
+body.device-mobile .resp-table-scroll,
+body.device-tablet .table-responsive,
+body.device-mobile .table-responsive {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+body.device-tablet .system-header,
+body.device-mobile .system-header {
+    padding: 0 1rem;
+    gap: 0.65rem;
+}
+
+body.device-tablet .header-left,
+body.device-mobile .header-left {
+    width: auto !important;
+    min-width: 0;
+    gap: 0.5rem;
+}
+
+body.device-tablet .header-left .logo,
+body.device-mobile .header-left .logo {
+    padding-left: 0 !important;
+}
+
+body.device-tablet .header-right,
+body.device-mobile .header-right {
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+/* Evitar cortes verticales por height:100% + overflow:hidden en vistas apiladas */
+body.device-tablet .checkin-root,
+body.device-mobile .checkin-root,
+body.device-tablet .fleet-root,
+body.device-mobile .fleet-root,
+body.device-tablet .finance-root,
+body.device-mobile .finance-root,
+body.device-tablet .booking-module,
+body.device-mobile .booking-module,
+body.device-tablet .hrms-module,
+body.device-mobile .hrms-module,
+body.device-tablet .inventory-module,
+body.device-mobile .inventory-module,
+body.device-tablet .assignment-module,
+body.device-mobile .assignment-module {
+    height: auto !important;
+    min-height: 100%;
+}
+
+/* Cabeceras, KPIs y barras de filtros con salto de línea limpio */
+body.device-tablet .fleet-header,
+body.device-mobile .fleet-header,
+body.device-tablet .fleet-kpis,
+body.device-mobile .fleet-kpis,
+body.device-tablet .fleet-add-bar,
+body.device-mobile .fleet-add-bar,
+body.device-tablet .finance-header,
+body.device-mobile .finance-header,
+body.device-tablet .finance-kpis,
+body.device-mobile .finance-kpis,
+body.device-tablet .hrms-header,
+body.device-mobile .hrms-header,
+body.device-tablet .checkin-header,
+body.device-mobile .checkin-header,
+body.device-tablet .home-table-header,
+body.device-mobile .home-table-header {
+    flex-wrap: wrap !important;
+    gap: 0.85rem !important;
+}
+
+body.device-tablet .booking-main-split,
+body.device-mobile .booking-main-split,
+body.device-tablet .hrms-main-split,
+body.device-mobile .hrms-main-split,
+body.device-tablet .finance-main-split,
+body.device-mobile .finance-main-split {
+    flex-direction: column !important;
+    overflow: visible !important;
+    height: auto !important;
+}
+
+body.device-tablet .booking-calendar-card,
+body.device-mobile .booking-calendar-card,
+body.device-tablet .booking-side-card,
+body.device-mobile .booking-side-card,
+body.device-tablet .hrms-main-split > .card,
+body.device-mobile .hrms-main-split > .card,
+body.device-tablet .finance-main-split > .card,
+body.device-mobile .finance-main-split > .card {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* Gantt de Asignación de Flota: scroll horizontal táctil sin solapar horas ni vuelos */
+body.device-tablet .fleet-gantt-card,
+body.device-mobile .fleet-gantt-card {
+    overflow: visible !important;
+}
+
+body.device-tablet #gantt-container,
+body.device-mobile #gantt-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    min-height: 260px;
+}
+
+body.device-tablet #gantt-header,
+body.device-mobile #gantt-header,
+body.device-tablet #gantt-body,
+body.device-mobile #gantt-body {
+    min-width: 780px;
+}
+
+/* Tabs horizontales desplazables sin desbordar */
+body.device-tablet #billing-tabs,
+body.device-mobile #billing-tabs,
+body.device-tablet #inv-tabs,
+body.device-mobile #inv-tabs,
+body.device-tablet #settings-tabs,
+body.device-mobile #settings-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.75rem !important;
+}
+
+body.device-tablet #billing-tabs > .btn,
+body.device-mobile #billing-tabs > .btn,
+body.device-tablet #inv-tabs > .btn,
+body.device-mobile #inv-tabs > .btn,
+body.device-tablet #settings-tabs > .btn,
+body.device-mobile #settings-tabs > .btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Factura y Tienda: paneles apilados limpiamente en Tablet y Celular */
+body.device-tablet .invoicing-split,
+body.device-mobile .invoicing-split,
+body.device-tablet .store-split,
+body.device-mobile .store-split {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
+}
+
+body.device-tablet #factura-preview,
+body.device-mobile #factura-preview {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* FIDS adaptativo para Tablet y Celular (evita solapamiento del logo central absoluto) */
+body.device-tablet #fids-container,
+body.device-mobile #fids-container {
+    height: auto !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+body.device-tablet #fids-header,
+body.device-mobile #fids-header {
+    flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+    padding: 0.9rem 1rem !important;
+    position: relative;
+}
+
+body.device-tablet .fids-center-logo,
+body.device-mobile .fids-center-logo {
+    position: static !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    order: -1;
+    margin-bottom: 0.25rem;
+}
+
+body.device-tablet .fids-center-logo img {
+    height: 68px !important;
+}
+
+body.device-tablet .fids-right-cluster,
+body.device-mobile .fids-right-cluster {
+    flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+}
+
+body.device-tablet #fids-ops-bar,
+body.device-mobile #fids-ops-bar {
+    padding: 0.65rem 1rem !important;
+    gap: 0.75rem !important;
+}
+
+body.device-tablet .fids-table-wrap,
+body.device-mobile .fids-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.75rem !important;
+}
+
+/* Modales seguros en Tablet y Celular */
+body.device-tablet .modal .modal-content,
+body.device-tablet .modal-overlay .modal-content,
+body.device-tablet .fraterno-modal-card,
+body.device-tablet .glass-modal {
+    max-width: 92vw !important;
+    max-height: 90dvh !important;
+    overflow-y: auto !important;
+}
+
+/* --- MODO TABLET (768px - 1024px / .device-tablet) --- */
+body.device-tablet .header-logo-img {
+    height: 48px !important;
+    max-width: 170px;
+}
+
+body.device-tablet .header-center {
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+body.device-tablet .main-content {
+    padding: 1.25rem;
+}
+
+body.device-tablet .resp-auto-grid-wide {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+}
+
+body.device-tablet .resp-grid-4,
+body.device-tablet .resp-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+body.device-tablet .checkin-kanban-board {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    height: auto !important;
+    overflow: visible !important;
+    gap: 1rem !important;
+}
+
+body.device-tablet .checkin-kanban-board .kanban-col {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+body.device-tablet .fleet-add-bar > * {
+    flex: 1 1 180px !important;
+}
+
+body.device-tablet .fleet-kpis > .card,
+body.device-tablet .finance-kpis > .card {
+    flex: 1 1 210px !important;
+}
+
+body.device-tablet #fids-header h1,
+body.device-tablet #fids-time {
+    font-size: 1.7rem !important;
+}
+
+@media (max-width: 900px) {
+    body.device-tablet .header-center {
+        display: none !important;
+    }
+}
+
+/* --- MODO CELULAR (<= 767px / .device-mobile) --- */
+body.device-mobile {
+    --header-height: 56px;
+}
+
+body.device-mobile .system-header {
+    top: 0;
+    left: 0;
+    right: 0;
+    border-radius: 0;
+    padding: 0 0.75rem;
+    gap: 0.4rem;
+}
+
+body.device-mobile .header-logo-img {
+    height: 38px !important;
+    max-width: 125px;
+}
+
+body.device-mobile .header-center,
+body.device-mobile .theme-label {
+    display: none !important;
+}
+
+body.device-mobile .theme-switch {
+    width: 52px;
+    height: 26px;
+}
+
+body.device-mobile .slider:before {
+    height: 18px;
+    width: 18px;
+}
+
+body.device-mobile.dark-mode .slider:before {
+    transform: translateX(26px);
+}
+
+body.device-mobile .app-container {
+    margin-top: var(--header-height);
+    height: calc(100vh - var(--header-height));
+    height: calc(100dvh - var(--header-height));
+}
+
+body.device-mobile .sidebar {
+    top: var(--header-height);
+    height: calc(100vh - var(--header-height));
+    height: calc(100dvh - var(--header-height));
+    width: min(285px, 86vw);
+}
+
+body.device-mobile .main-content {
+    padding: 0.85rem;
+}
+
+body.device-mobile .card,
+body.device-mobile .glass-card {
+    padding: 1rem !important;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+}
+
+body.device-mobile h1 {
+    font-size: 1.45rem;
+}
+
+body.device-mobile h2 {
+    font-size: 1.25rem;
+}
+
+body.device-mobile h3 {
+    font-size: 1.05rem;
+}
+
+/* Prevenir zoom automático de iOS y mejorar área táctil en celular */
+body.device-mobile input.form-control,
+body.device-mobile select.form-control,
+body.device-mobile textarea.form-control {
+    font-size: 16px;
+    min-height: 42px;
+}
+
+body.device-mobile .btn {
+    min-height: 38px;
+    font-size: 0.9rem;
+}
+
+/* Todos los grids multi-columna colapsan limpiamente a 1 columna en celular */
+body.device-mobile .resp-auto-grid-wide,
+body.device-mobile .resp-auto-grid-med,
+body.device-mobile .resp-grid-2,
+body.device-mobile .resp-grid-3,
+body.device-mobile .resp-grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem !important;
+}
+
+body.device-mobile .resp-fluid-min {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex-basis: 100% !important;
+}
+
+body.device-mobile .resp-fluid-control {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body.device-mobile .checkin-kanban-board {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+    gap: 1rem !important;
+}
+
+body.device-mobile .checkin-kanban-board .kanban-col,
+body.device-mobile .kanban-column {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+body.device-mobile .kanban-board {
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+body.device-mobile .checkin-header > div:last-child,
+body.device-mobile #search-passenger {
+    width: 100% !important;
+}
+
+body.device-mobile .fleet-kpis,
+body.device-mobile .finance-kpis {
+    flex-direction: column !important;
+}
+
+body.device-mobile .fleet-add-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+body.device-mobile .fleet-add-bar > * {
+    width: 100% !important;
+    flex: none !important;
+}
+
+body.device-mobile .fleet-header-actions,
+body.device-mobile .finance-header-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+body.device-mobile .fleet-header-actions > *,
+body.device-mobile .finance-header-actions > * {
+    flex: 1 1 135px;
+    min-height: 40px;
+}
+
+body.device-mobile .home-table-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+body.device-mobile .multi-dropdown,
+body.device-mobile .multi-dropdown-menu {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+/* Calendarios de 7 columnas compactos y legibles en pantalla de celular */
+body.device-mobile .resp-calendar-grid {
+    gap: 0.2rem !important;
+    font-size: 0.72rem !important;
+}
+
+body.device-mobile .resp-calendar-grid > div {
+    padding: 0.25rem 0.15rem !important;
+    font-size: 0.72rem !important;
+    min-height: 44px;
+}
+
+/* Tablas legibles con desplazamiento suave en celular */
+body.device-mobile table th,
+body.device-mobile table td {
+    padding: 0.65rem 0.55rem !important;
+    font-size: 0.84rem;
+}
+
+/* Modales, slide-over y login en celular */
+body.device-mobile .modal,
+body.device-mobile .modal-overlay,
+body.device-mobile .fraterno-modal-overlay {
+    padding: 0.6rem !important;
+}
+
+body.device-mobile .modal .modal-content,
+body.device-mobile .modal-overlay .modal-content,
+body.device-mobile .fraterno-modal-card,
+body.device-mobile .glass-modal {
+    width: calc(100vw - 1.2rem) !important;
+    max-width: 100% !important;
+    max-height: 92dvh !important;
+    overflow-y: auto !important;
+    padding: 1.15rem !important;
+    border-radius: 14px !important;
+}
+
+body.device-mobile .modal .modal-content h3,
+body.device-mobile .modal-overlay .modal-content h3,
+body.device-mobile .fraterno-modal-card h3 {
+    font-size: 1.05rem;
+    padding-right: 1.75rem;
+}
+
+body.device-mobile .slide-over-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+}
+
+body.device-mobile .login-card {
+    width: calc(100% - 2rem);
+    padding: 2rem 1.35rem;
+    margin: 1rem;
+}
+
+/* FIDS en celular */
+body.device-mobile .fids-center-logo img {
+    height: 50px !important;
+}
+
+body.device-mobile #fids-header h1,
+body.device-mobile #fids-time {
+    font-size: 1.3rem !important;
+    letter-spacing: 0.5px !important;
+}
+
+body.device-mobile #fids-closed-banner {
+    padding: 0.75rem 0.85rem !important;
+}
+
+body.device-mobile #fids-closed-banner > div:first-child {
+    font-size: 0.95rem !important;
+    letter-spacing: 0.6px !important;
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+}
+
+/* Portales B2C y Autogestión en celular */
+body.device-mobile .b2c-view {
+    padding: 0.75rem 0.75rem 3rem 0.75rem !important;
+}
+
+body.device-mobile .b2c-glass-card {
+    padding: 1.15rem !important;
+    border-radius: 14px;
+}
+
+body.device-mobile .b2c-btn-glow {
+    width: 100%;
+    padding: 0.85rem 1.25rem;
+    font-size: 1rem;
+}
+
+body.device-mobile .ag-hero {
+    padding: 2.25rem 1rem !important;
+    background-attachment: scroll !important;
+}
+
+body.device-mobile .ag-hero-title {
+    font-size: 2rem !important;
+}
+
+body.device-mobile .ag-hero-sub {
+    font-size: 0.96rem !important;
+    margin-bottom: 1rem !important;
+}
+
+body.device-mobile .ag-booking-wrap {
+    padding: 1.5rem 0.75rem !important;
+}
+
+body.device-mobile .ag-card {
+    padding: 1.25rem 1rem !important;
+    border-radius: 16px !important;
+}
+
+body.device-mobile .ag-lang-box {
+    position: static !important;
+    text-align: right;
+    margin-bottom: 0.75rem;
+}
+
+body.device-mobile .ag-type-row {
+    flex-direction: column !important;
+    gap: 0.85rem !important;
+}
+
+/* Respaldo CSS puro por viewport si el JS aún no ejecutó */
+@media (max-width: 1024px) {
+    .mobile-only {
+        display: flex !important;
+    }
+    .header-left {
+        width: auto !important;
+    }
+    .header-logo-img {
+        height: 46px !important;
+    }
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: calc(var(--header-height) + 0.5rem);
+        height: calc(100vh - var(--header-height) - 0.5rem);
+        height: calc(100dvh - var(--header-height) - 0.5rem);
+        transform: translateX(-105%);
+        z-index: 1100;
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+}
+
+@media (max-width: 767px) {
+    .header-center,
+    .theme-label {
+        display: none !important;
+    }
+    .header-logo-img {
+        height: 38px !important;
+    }
 }
 

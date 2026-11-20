@@ -37,9 +37,9 @@ window.Modules.checkin = {
                     padding: 2.5rem !important;
                 }
             </style>
-            <div style="display: flex; flex-direction: column; height: 100%; gap: 1rem;">
+            <div class="checkin-root" style="display: flex; flex-direction: column; height: 100%; gap: 1rem;">
                 <!-- Header -->
-                <div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 1rem;">
+                <div class="glass-card checkin-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 1rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <div style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--brand-action), #f59e0b); display: flex; align-items: center; justify-content: center; color: var(--text-primary); font-size: 1.5rem;">
                             <i class="fas fa-clipboard-check"></i>
@@ -55,7 +55,7 @@ window.Modules.checkin = {
                 </div>
 
                 <!-- Kanban Board -->
-                <div style="display: flex; gap: 1.5rem; flex: 1; overflow-y: hidden;">
+                <div class="checkin-kanban-board" style="display: flex; gap: 1.5rem; flex: 1; overflow-y: hidden;">
                     
                     <!-- Columna: Pendiente -->
                     <div class="kanban-col" style="flex: 1; display: flex; flex-direction: column; min-width: 250px;">

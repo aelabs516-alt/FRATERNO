@@ -8,7 +8,7 @@ window.Modules.billing = {
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Gestión de ingresos de la empresa y cálculo de nómina técnica.</p>
 
             <!-- Tabs Navigation -->
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;" id="billing-tabs">
+            <div class="billing-tabs-bar" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;" id="billing-tabs">
                 <button class="btn btn-primary" data-target="ingresos"><i class="fas fa-chart-bar"></i> Reporte de Ingresos</button>
                 <button class="btn" style="background: var(--bg-surface-hover); color: var(--text-primary);" data-target="liquidacion"><i class="fas fa-money-check-alt"></i> Liquidación de Instructores</button>
                 <button class="btn" style="background: var(--bg-surface-hover); color: var(--text-primary);" data-target="empacadores"><i class="fas fa-box-open"></i> Liquidación de Empacadores</button>

@@ -3,9 +3,9 @@ window.Modules = window.Modules || {};
 window.Modules.fleet = {
     render: (container) => {
         container.innerHTML = `
-            <div style="display: flex; flex-direction: column; height: 100%; gap: 1rem;">
+            <div class="fleet-root" style="display: flex; flex-direction: column; height: 100%; gap: 1rem;">
                 <!-- Header -->
-                <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem;">
+                <div class="card fleet-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <div style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--brand-blue), #3b82f6); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                             <i class="fas fa-plane"></i>
@@ -15,7 +15,7 @@ window.Modules.fleet = {
                             <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Gestión de rutas, aeronaves y horas de vuelo</p>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <div class="fleet-header-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <input type="date" id="fleet-date-filter" class="form-control" style="height: 100%; font-weight: bold; padding: 0.5rem 1rem;">
                         </div>
@@ -25,7 +25,7 @@ window.Modules.fleet = {
                 </div>
 
                 <!-- KPIs -->
-                <div style="display: flex; gap: 1rem;">
+                <div class="fleet-kpis" style="display: flex; gap: 1rem;">
                     <div class="card" style="flex: 1; display: flex; align-items: center; gap: 1rem; padding: 1.25rem;">
                         <div style="width: 45px; height: 45px; background: var(--brand-blue)20; color: var(--brand-blue); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 1.25rem;"><i class="fas fa-plane-departure"></i></div>
                         <div>
@@ -50,9 +50,9 @@ window.Modules.fleet = {
                 </div>
 
                 <!-- Main Gantt Interface -->
-                <div class="card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 1.5rem;">
+                <div class="card fleet-gantt-card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 1.5rem;">
                     
-                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: flex-end; background: var(--bg-surface-hover); padding: 1rem; border-radius: 8px;">
+                    <div class="fleet-add-bar" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: flex-end; background: var(--bg-surface-hover); padding: 1rem; border-radius: 8px;">
                         <div class="form-group" style="margin-bottom: 0; flex: 2;">
                             <label style="font-weight: 600; color: var(--text-primary);">Aeronave</label>
                             <select id="fleet-plane-select" class="form-control" style="background: var(--bg-main);"></select>

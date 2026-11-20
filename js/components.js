@@ -45,22 +45,61 @@ function initClock() {
 }
 
 // ==========================================
-// Mobile Menu (Sidebar)
+// Mobile & Tablet Menu (Sidebar Drawer)
 // ==========================================
 function initMobileMenu() {
     const btn = document.getElementById('mobile-menu-btn');
     const sidebar = document.getElementById('sidebar');
     if (!btn || !sidebar) return;
 
-    btn.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
+    let backdrop = document.getElementById('sidebar-backdrop');
+    if (!backdrop && document.body) {
+        backdrop = document.createElement('div');
+        backdrop.id = 'sidebar-backdrop';
+        backdrop.className = 'sidebar-backdrop';
+        document.body.appendChild(backdrop);
+    }
+
+    const isDrawerMode = () => (
+        window.innerWidth <= 1024 ||
+        (document.body && document.body.classList && (document.body.classList.contains('device-mobile') || document.body.classList.contains('device-tablet')))
+    );
+
+    const closeDrawer = () => {
+        sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+    };
+
+    const toggleDrawer = (e) => {
+        if (e) e.stopPropagation();
+        const willOpen = !sidebar.classList.contains('open');
+        sidebar.classList.toggle('open', willOpen);
+        if (backdrop) backdrop.classList.toggle('open', willOpen);
+        btn.setAttribute('aria-expanded', String(willOpen));
+    };
+
+    btn.addEventListener('click', toggleDrawer);
+    if (backdrop) backdrop.addEventListener('click', closeDrawer);
+
+    // Cerrar al seleccionar cualquier opción del menú en móvil o tablet
+    sidebar.querySelectorAll('.nav-item').forEach(link => {
+        link.addEventListener('click', () => {
+            if (isDrawerMode()) closeDrawer();
+        });
     });
 
     document.addEventListener('click', (e) => {
-        if (window.innerWidth <= 768) {
-            if (!sidebar.contains(e.target) && !btn.contains(e.target) && sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
+        if (isDrawerMode() && sidebar.classList.contains('open')) {
+            if (!sidebar.contains(e.target) && !btn.contains(e.target)) {
+                closeDrawer();
             }
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+            closeDrawer();
         }
     });
 }

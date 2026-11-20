@@ -7,11 +7,12 @@ window.Modules.home = {
             </div>
             
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div class="home-table-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h3 style="margin: 0;">Próximos Vuelos</h3>
                     <input type="date" id="home-date-filter" class="form-control" style="width: 200px; background: var(--bg-main);">
                 </div>
                 
+                <div class="table-responsive">
                 <table class="crud-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95rem;">
                     <thead>
                         <tr style="border-bottom: 1px solid var(--border-color); background: var(--bg-surface-hover);">
@@ -27,6 +28,7 @@ window.Modules.home = {
                         <!-- Rendered dynamically -->
                     </tbody>
                 </table>
+                </div>
             </div>
         `;
     },

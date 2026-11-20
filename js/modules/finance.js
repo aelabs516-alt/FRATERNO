@@ -3,10 +3,10 @@ window.Modules = window.Modules || {};
 window.Modules.finance = {
     render: (container) => {
         container.innerHTML = `
-            <div style="display: flex; flex-direction: column; height: 100%; gap: 1rem; padding-bottom: 1rem;">
+            <div class="finance-root" style="display: flex; flex-direction: column; height: 100%; gap: 1rem; padding-bottom: 1rem;">
                 
                 <!-- Header -->
-                <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem;">
+                <div class="card finance-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <div style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--brand-success), #10b981); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                             <i class="fas fa-chart-pie"></i>
@@ -16,14 +16,14 @@ window.Modules.finance = {
                             <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Control de ingresos, egresos y cierres de caja diarios</p>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 1rem;">
+                    <div class="finance-header-actions" style="display: flex; gap: 1rem;">
                         <button class="btn btn-outline" id="btn-history-close" style="padding: 0 1.5rem;"><i class="fas fa-history"></i> Historial de Cierres</button>
                         <button class="btn btn-primary" id="btn-add-tx" style="padding: 0 1.5rem;"><i class="fas fa-plus"></i> Registrar Movimiento</button>
                     </div>
                 </div>
 
                 <!-- KPIs -->
-                <div style="display: flex; gap: 1rem;">
+                <div class="finance-kpis" style="display: flex; gap: 1rem;">
                     <div class="card" style="flex: 1; display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem; background: linear-gradient(145deg, var(--bg-main), var(--bg-surface-hover));">
                         <div style="width: 50px; height: 50px; background: rgba(16, 185, 129, 0.15); color: var(--brand-success); border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 1.5rem;"><i class="fas fa-arrow-down"></i></div>
                         <div>
@@ -48,7 +48,7 @@ window.Modules.finance = {
                 </div>
 
                 <!-- Main Content (Charts and List) -->
-                <div style="display: flex; gap: 1.5rem; flex: 1; min-height: 0;">
+                <div class="finance-main-split" style="display: flex; gap: 1.5rem; flex: 1; min-height: 0;">
                     
                     <!-- Breakdown (Left) -->
                     <div class="card" style="flex: 1; display: flex; flex-direction: column; min-width: 300px;">

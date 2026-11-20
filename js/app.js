@@ -253,6 +253,142 @@ const routes = {
 };
 
 // ==========================================
+// Device Identification (Desktop / Tablet / Mobile)
+// ==========================================
+window.detectDevice = function detectDevice() {
+    const width = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || 1280;
+    const height = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || 800;
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+    const platform = (typeof navigator !== 'undefined' && navigator.platform) ? navigator.platform : '';
+    const maxTouch = (typeof navigator !== 'undefined' && navigator.maxTouchPoints) ? navigator.maxTouchPoints : 0;
+
+    const isIPadOS = platform === 'MacIntel' && maxTouch > 1;
+    const isTabletUA = /iPad|Tablet|PlayBook|Silk|Kindle/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) || isIPadOS;
+    const isPhoneUA = /iPhone|iPod|Windows Phone|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (/Android/i.test(ua) && /Mobile/i.test(ua));
+
+    let deviceType = 'desktop';
+    if (width <= 767 || (isPhoneUA && Math.min(width, height) <= 500 && width < 920)) {
+        deviceType = 'mobile';
+    } else if ((width >= 768 && width <= 1024) || (isTabletUA && width <= 1366)) {
+        deviceType = 'tablet';
+    } else {
+        deviceType = 'desktop';
+    }
+
+    const orientation = width >= height ? 'landscape' : 'portrait';
+    const info = {
+        type: deviceType,
+        isMobile: deviceType === 'mobile',
+        isTablet: deviceType === 'tablet',
+        isDesktop: deviceType === 'desktop',
+        orientation,
+        width,
+        height
+    };
+
+    window.DeviceInfo = info;
+    window.isMobileDevice = info.isMobile;
+    window.isTabletDevice = info.isTablet;
+    window.isDesktopDevice = info.isDesktop;
+
+    const targets = [document.documentElement, document.body].filter(Boolean);
+    targets.forEach(el => {
+        if (el.classList) {
+            el.classList.remove('device-mobile', 'device-tablet', 'device-desktop', 'orientation-portrait', 'orientation-landscape');
+            el.classList.add(`device-${deviceType}`, `orientation-${orientation}`);
+        }
+        if (typeof el.setAttribute === 'function') {
+            el.setAttribute('data-device', deviceType);
+            el.setAttribute('data-orientation', orientation);
+        }
+    });
+
+    // Al regresar a escritorio, cerrar cajón lateral si estaba abierto
+    if (info.isDesktop) {
+        const sb = document.getElementById('sidebar');
+        const bd = document.getElementById('sidebar-backdrop');
+        if (sb && sb.classList) sb.classList.remove('open');
+        if (bd && bd.classList) bd.classList.remove('open');
+    }
+
+    return info;
+};
+
+// ==========================================
+// Responsive Layout Enhancer (solo aplica en tablet/mobile vía CSS)
+// ==========================================
+window.applyResponsiveLayout = function applyResponsiveLayout(root) {
+    const container = root || document.getElementById('app-view');
+    if (!container || typeof container.querySelectorAll !== 'function') return;
+
+    // 1. Asegurar scroll horizontal limpio en cualquier tabla que no esté envuelta
+    const tables = container.querySelectorAll('table');
+    tables.forEach(tbl => {
+        const parent = tbl.parentElement;
+        if (!parent) return;
+        const pStyle = (parent.getAttribute && parent.getAttribute('style')) || '';
+        const alreadyScrollable =
+            (parent.classList && (parent.classList.contains('table-responsive') || parent.classList.contains('resp-table-scroll') || parent.classList.contains('fids-table-wrap'))) ||
+            /overflow-x\s*:\s*auto/i.test(pStyle);
+        if (!alreadyScrollable) {
+            if (typeof document.createElement === 'function' && typeof parent.replaceChild === 'function') {
+                const wrap = document.createElement('div');
+                wrap.classList.add('resp-table-scroll');
+                parent.replaceChild(wrap, tbl);
+                wrap.appendChild(tbl);
+            } else if (parent.classList) {
+                parent.classList.add('resp-table-scroll');
+            }
+        }
+    });
+
+    // 2. Clasificar grids y bloques con estilos inline para adaptación segura en tablet y celular
+    const allDivs = container.querySelectorAll('div');
+    allDivs.forEach(el => {
+        const st = (el.getAttribute && el.getAttribute('style')) || '';
+        if (!st || !el.classList) return;
+
+        if (/grid-template-columns\s*:/i.test(st)) {
+            if (el.id === 'gantt-header' || (el.parentElement && el.parentElement.id === 'gantt-body')) {
+                return; // El Gantt maneja su propio scroll horizontal fluido
+            }
+            if (/repeat\(\s*7/i.test(st)) {
+                el.classList.add('resp-calendar-grid');
+            } else if (/100px\s+1fr/i.test(st)) {
+                el.classList.add('resp-kv-grid');
+            } else if (/minmax\(\s*(?:3\d\d|4\d\d)px/i.test(st)) {
+                el.classList.add('resp-auto-grid-wide');
+            } else if (/minmax\(\s*2\d\dpx/i.test(st)) {
+                el.classList.add('resp-auto-grid-med');
+            } else if (/repeat\(\s*4/i.test(st)) {
+                el.classList.add('resp-grid-4');
+            } else if (/1fr\s+1fr\s+1fr|1fr\s+2fr\s+auto|1fr\s+1fr\s+auto/i.test(st)) {
+                el.classList.add('resp-grid-3');
+            } else if (/2fr\s+1fr|1fr\s+1fr|repeat\(\s*2/i.test(st)) {
+                el.classList.add('resp-grid-2');
+            }
+        }
+
+        if (/min-width\s*:\s*(?:2[6-9]\d|3\d\d|4\d\d)px/i.test(st) && el.id !== 'gantt-header' && !el.classList.contains('kanban-col')) {
+            el.classList.add('resp-fluid-min');
+        }
+    });
+
+    // 3. Inputs y selects con ancho fijo amplio en escritorio -> fluidos en móvil
+    const controls = container.querySelectorAll('input, select');
+    controls.forEach(ctrl => {
+        const st = (ctrl.getAttribute && ctrl.getAttribute('style')) || '';
+        if (/width\s*:\s*(?:1[89]\d|2\d\d|3\d\d|4\d\d)px/i.test(st) && ctrl.classList) {
+            ctrl.classList.add('resp-fluid-control');
+        }
+    });
+};
+
+window.detectDevice();
+window.addEventListener('resize', window.detectDevice);
+window.addEventListener('orientationchange', window.detectDevice);
+
+// ==========================================
 // Router Engine & Auth
 // ==========================================
 function router() {
@@ -368,19 +504,36 @@ function router() {
 
     const header = document.getElementById('main-header');
     const sidebar = document.getElementById('sidebar');
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
     const appContainer = document.getElementById('app-wrapper');
     const mainContent = document.querySelector('.main-content');
 
     const isFullscreenModule = hash === '/login' || hash === '/b2c' || hash === '/autogestion';
+    if (document.body && document.body.classList) {
+        document.body.classList.toggle('fullscreen-route', isFullscreenModule);
+        document.body.classList.toggle('fids-route', hash === '/fids');
+    }
 
-    if (header) header.style.display = isFullscreenModule ? 'none' : 'flex';
-    if (sidebar) sidebar.style.display = isFullscreenModule ? 'none' : 'flex';
+    // Cerrar menú lateral móvil/tablet al cambiar de módulo
+    if (sidebar && sidebar.classList && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+    }
+    if (sidebarBackdrop && sidebarBackdrop.classList && sidebarBackdrop.classList.contains('open')) {
+        sidebarBackdrop.classList.remove('open');
+    }
+
+    if (header) header.style.display = isFullscreenModule ? 'none' : '';
+    if (sidebar) sidebar.style.display = isFullscreenModule ? 'none' : '';
     if (appContainer) {
-        appContainer.style.marginTop = isFullscreenModule ? '0' : 'calc(var(--header-height) + 1rem)';
-        appContainer.style.height = isFullscreenModule ? '100vh' : 'calc(100vh - var(--header-height) - 1rem)';
+        appContainer.style.marginTop = isFullscreenModule ? '0' : '';
+        appContainer.style.height = isFullscreenModule ? '100vh' : '';
     }
     if (mainContent) {
-        mainContent.style.padding = isFullscreenModule ? '0' : '2rem';
+        mainContent.style.padding = isFullscreenModule ? '0' : '';
+        mainContent.style.marginLeft = '';
+        mainContent.style.marginTop = '';
+        mainContent.style.height = '';
+        mainContent.style.backgroundColor = '';
     }
     
     // Render the module securely
@@ -389,6 +542,9 @@ function router() {
             routes[hash].render(appView);
             if (typeof routes[hash].init === 'function') {
                 routes[hash].init();
+            }
+            if (typeof window.applyResponsiveLayout === 'function') {
+                window.applyResponsiveLayout(appView);
             }
         } catch (err) {
             console.error("Module Render Error:", err);
@@ -509,20 +665,9 @@ window.addEventListener('load', async () => {
         });
     }
 
-    // Device Identification (Mobile vs Desktop)
-    function detectDevice() {
-        const isMobile = window.innerWidth <= 768 || /Mobi|Android/i.test(navigator.userAgent);
-        window.isMobileDevice = isMobile;
-        if (isMobile) {
-            document.body.classList.add('device-mobile');
-            document.body.classList.remove('device-desktop');
-        } else {
-            document.body.classList.add('device-desktop');
-            document.body.classList.remove('device-mobile');
-        }
+    if (typeof window.detectDevice === 'function') {
+        window.detectDevice();
     }
-    detectDevice();
-    window.addEventListener('resize', detectDevice);
 
     // Inactivity Timeout (15 minutes) - Optimized approach
     let lastActivityTime = Date.now();
