@@ -56,14 +56,14 @@ window.Modules.store = {
             }
             
             catalogGrid.innerHTML = products.map(p => `
-                <div class="store-product-card" style="border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: white; cursor: pointer; transition: transform 0.2s; text-align: center; display: flex; flex-direction: column;" data-id="${escapeHTML(p.id)}">
-                    <div style="height: 150px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                        ${p.image ? `<img src="${escapeHTML(p.image)}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-box" style="font-size: 3rem; color: #ccc;"></i>`}
+                <div class="store-product-card" style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: var(--bg-surface); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; text-align: center; display: flex; flex-direction: column; box-shadow: var(--shadow-xs);" data-id="${escapeHTML(p.id)}">
+                    <div style="height: 150px; background: var(--bg-surface-hover); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        ${p.image ? `<img src="${escapeHTML(p.image)}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-box" style="font-size: 3rem; color: var(--text-muted, var(--text-secondary)); opacity: 0.5;"></i>`}
                     </div>
                     <div style="padding: 1rem; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
                         <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">${escapeHTML(p.name)}</h4>
                         <div style="color: var(--brand-success); font-weight: bold; font-size: 1.1rem;">${fmt(p.price)}</div>
-                        <button class="btn btn-sm" style="margin-top: 0.5rem; background: var(--brand-action); color: white; width: 100%;"><i class="fas fa-cart-plus"></i> Agregar</button>
+                        <button class="btn btn-sm btn-primary" style="margin-top: 0.65rem; width: 100%;"><i class="fas fa-cart-plus"></i> Agregar</button>
                     </div>
                 </div>
             `).join('');

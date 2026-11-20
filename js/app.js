@@ -384,6 +384,52 @@ window.applyResponsiveLayout = function applyResponsiveLayout(root) {
     });
 };
 
+// ==========================================
+// Theme Engine (Modo Claro / Modo Oscuro sincronizado)
+// ==========================================
+window.applyTheme = function applyTheme(theme, persist = true) {
+    const isDark = theme === 'dark';
+    const mode = isDark ? 'dark' : 'light';
+    const targets = [document.documentElement, document.body].filter(Boolean);
+    targets.forEach(el => {
+        if (el.classList) {
+            el.classList.remove('light-mode', 'dark-mode');
+            el.classList.add(isDark ? 'dark-mode' : 'light-mode');
+        }
+        if (typeof el.setAttribute === 'function') {
+            el.setAttribute('data-theme', mode);
+        }
+    });
+
+    const themeSwitch = document.getElementById('checkbox-theme');
+    if (themeSwitch) themeSwitch.checked = isDark;
+
+    document.querySelectorAll('.logo img, .login-logo img').forEach(img => {
+        img.src = isDark ? 'img/logo_dark.png' : 'img/logo.png';
+    });
+
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme && typeof metaTheme.setAttribute === 'function') {
+        metaTheme.setAttribute('content', isDark ? '#060d17' : '#0c2331');
+    }
+
+    if (persist) {
+        try { localStorage.setItem('fraterno_theme', mode); } catch (e) {}
+    }
+
+    if (window.Modules && window.Modules.dashboard && window.location.hash === '#/dashboard') {
+        const container = document.getElementById('app-view');
+        if (container) window.Modules.dashboard.render(container);
+    }
+
+    return mode;
+};
+
+try {
+    const initialTheme = localStorage.getItem('fraterno_theme') === 'dark' ? 'dark' : 'light';
+    window.applyTheme(initialTheme, false);
+} catch (e) {}
+
 window.detectDevice();
 window.addEventListener('resize', window.detectDevice);
 window.addEventListener('orientationchange', window.detectDevice);
@@ -611,48 +657,12 @@ window.addEventListener('load', async () => {
 
     // Dark Mode Toggle Logic
     const themeSwitch = document.getElementById('checkbox-theme');
-    const savedTheme = localStorage.getItem('fraterno_theme');
-    
-    const updateLogo = (theme) => {
-        const logoImg = document.querySelector('.logo img');
-        if (logoImg) {
-            logoImg.src = theme === 'dark' ? 'img/logo_dark.png' : 'img/logo.png';
-        }
-    };
-
-    if (savedTheme === 'dark') {
-        document.body.classList.remove('light-mode');
-        document.body.classList.add('dark-mode');
-        if (themeSwitch) themeSwitch.checked = true;
-        updateLogo('dark');
-    } else {
-        updateLogo('light');
-    }
+    const savedTheme = localStorage.getItem('fraterno_theme') === 'dark' ? 'dark' : 'light';
+    window.applyTheme(savedTheme, false);
 
     if (themeSwitch) {
         themeSwitch.addEventListener('change', (e) => {
-            const updateDashboardCharts = () => {
-                if (window.Modules && window.Modules.dashboard && (window.location.hash === '#/dashboard' || window.location.hash === '' || window.location.hash === '#/')) {
-                    const container = document.getElementById('app-view');
-                    if (container) {
-                        window.Modules.dashboard.render(container);
-                    }
-                }
-            };
-
-            if (e.target.checked) {
-                document.body.classList.remove('light-mode');
-                document.body.classList.add('dark-mode');
-                localStorage.setItem('fraterno_theme', 'dark');
-                updateLogo('dark');
-                updateDashboardCharts();
-            } else {
-                document.body.classList.remove('dark-mode');
-                document.body.classList.add('light-mode');
-                localStorage.setItem('fraterno_theme', 'light');
-                updateLogo('light');
-                updateDashboardCharts();
-            }
+            window.applyTheme(e.target.checked ? 'dark' : 'light', true);
         });
     }
 

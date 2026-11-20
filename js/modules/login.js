@@ -1,37 +1,86 @@
 window.Modules = window.Modules || {};
 window.Modules.login = {
     render: (container) => {
+        const isDark = document.body && document.body.classList && document.body.classList.contains('dark-mode');
+        const logoSrc = isDark ? 'img/logo_dark.png' : 'img/logo.png';
         container.innerHTML = `
             <div class="login-container">
                 <div class="login-overlay"></div>
+                <div class="login-ambient-orb orb-1"></div>
+                <div class="login-ambient-orb orb-2"></div>
+
+                <button type="button" id="login-theme-toggle" class="login-theme-btn" title="Cambiar entre modo claro y modo oscuro">
+                    <i class="fas ${isDark ? 'fa-sun' : 'fa-moon'}"></i>
+                    <span>${isDark ? 'Modo Claro' : 'Modo Oscuro'}</span>
+                </button>
+
                 <div class="login-card">
-                    <div class="login-logo" style="margin-bottom: 0.5rem; text-align: center;">
-                        <img src="img/logo.png" alt="Fraterno Logo" style="height: 60px;">
+                    <div class="login-badge">
+                        <i class="fas fa-parachute-box"></i> Operaciones Aéreas & Manifiesto
                     </div>
-                    <p class="login-subtitle">Sistema de Gestión Aeronáutica</p>
+                    <div class="login-logo">
+                        <img src="${logoSrc}" alt="Fraterno Paracaidismo">
+                    </div>
+                    <h1 class="login-title">Bienvenido a Fraterno</h1>
+                    <p class="login-subtitle">Ingresa tus credenciales para acceder al centro de control</p>
 
-                    <form id="login-form" style="text-align: left;">
+                    <form id="login-form" class="login-form">
                         <div class="form-group">
-                            <label>Usuario</label>
-                            <input type="text" id="login-user" class="form-control" placeholder="Ingresa tu usuario" required>
+                            <label for="login-user">Usuario</label>
+                            <div class="login-input-wrap">
+                                <i class="fas fa-user login-input-icon"></i>
+                                <input type="text" id="login-user" class="form-control" placeholder="Ingresa tu usuario" autocomplete="username" required>
+                            </div>
                         </div>
-                        <div class="form-group" style="margin-bottom: 2rem;">
-                            <label>Contraseña</label>
-                            <input type="password" id="login-pass" class="form-control" placeholder="••••••••" required>
+                        <div class="form-group">
+                            <label for="login-pass">Contraseña</label>
+                            <div class="login-input-wrap">
+                                <i class="fas fa-lock login-input-icon"></i>
+                                <input type="password" id="login-pass" class="form-control" placeholder="••••••••" autocomplete="current-password" required>
+                                <button type="button" id="login-toggle-pass" class="login-pass-eye" aria-label="Mostrar u ocultar contraseña" title="Mostrar contraseña">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
 
-
-
-                        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-size: 1.1rem;">
-                            Iniciar Sesión <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
+                        <button type="submit" class="btn btn-primary login-submit-btn">
+                            <span>Iniciar Sesión</span>
+                            <i class="fas fa-arrow-right"></i>
                         </button>
                     </form>
+
+                    <div class="login-footer-note">
+                        <i class="fas fa-shield-alt"></i> Plataforma Segura — Club Deportivo Fundación Fraterno
+                    </div>
                 </div>
             </div>
         `;
     },
     init: () => {
         const form = document.getElementById('login-form');
+        const togglePassBtn = document.getElementById('login-toggle-pass');
+        const passInput = document.getElementById('login-pass');
+        const themeBtn = document.getElementById('login-theme-toggle');
+
+        if (togglePassBtn && passInput) {
+            togglePassBtn.addEventListener('click', () => {
+                const showing = passInput.type === 'text';
+                passInput.type = showing ? 'password' : 'text';
+                togglePassBtn.innerHTML = `<i class="fas ${showing ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+            });
+        }
+
+        if (themeBtn) {
+            themeBtn.addEventListener('click', () => {
+                const currentlyDark = document.body.classList.contains('dark-mode');
+                const next = currentlyDark ? 'light' : 'dark';
+                if (typeof window.applyTheme === 'function') {
+                    window.applyTheme(next, true);
+                }
+                themeBtn.innerHTML = `<i class="fas ${next === 'dark' ? 'fa-sun' : 'fa-moon'}"></i><span>${next === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>`;
+            });
+        }
+
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             const userIn = document.getElementById('login-user').value.trim();
@@ -61,5 +110,5 @@ window.Modules.login = {
             }
         });
     }
-}
+};
 

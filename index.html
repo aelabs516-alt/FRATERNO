@@ -11,10 +11,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="./img/favicon-32x32.png?v=1.0">
     <link rel="icon" type="image/png" sizes="192x192" href="./img/favicon-192x192.png?v=1.0">
     <link rel="apple-touch-icon" sizes="180x180" href="./img/apple-touch-icon.png?v=1.0">
-    <!-- Google Fonts: Inter -->
+    <!-- Google Fonts: Plus Jakarta Sans, Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -37,7 +37,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Main CSS -->
-    <link rel="stylesheet" href="./css/styles.css?v=2.9">
+    <link rel="stylesheet" href="./css/styles.css?v=3.1">
 </head>
 <body class="light-mode">
     
@@ -45,34 +45,39 @@
     <header class="system-header glass-header" id="main-header">
         <div class="header-left">
             <button id="mobile-menu-btn" class="icon-btn mobile-only" aria-label="Abrir menú de navegación" aria-expanded="false"><i class="fas fa-bars"></i></button>
-            <div class="logo" style="display: flex; align-items: center; justify-content: center; padding-left: 0.5rem;">
-                <img src="img/logo.png" alt="Fraterno Paracaidismo" class="header-logo-img" style="height: 84px; width: auto; object-fit: contain;">
+            <div class="logo">
+                <img src="img/logo.png" alt="Fraterno Paracaidismo" class="header-logo-img">
             </div>
         </div>
-        <div class="header-center clock-widget" style="flex-direction: column; align-items: center; gap: 0.1rem; line-height: 1.2;">
-            <div style="font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/2/21/Flag_of_Colombia.svg" alt="Colombia" style="width: 20px; height: auto; border-radius: 2px;"> - <span id="header-date">-- ----- ----</span>
+        <div class="header-center clock-widget">
+            <div class="clock-date-row">
+                <span class="clock-live-dot" title="Operación en vivo"></span>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/2/21/Flag_of_Colombia.svg" alt="Colombia" class="clock-flag">
+                <span id="header-date">-- ----- ----</span>
             </div>
-            <div style="font-size: 0.85rem; font-family: monospace; color: var(--brand-action); font-weight: 600;">
-                <span id="local-time">--:--</span> <span style="color:var(--text-secondary); margin:0 0.5rem;">|</span> <span id="utc-time">--:-- UTC</span>
+            <div class="clock-time-row">
+                <span id="local-time">--:--</span>
+                <span class="clock-sep">|</span>
+                <span id="utc-time" class="utc-text">--:-- UTC</span>
             </div>
         </div>
         <div class="header-right">
-            <div class="lang-selector">
-                <select id="lang-select">
+            <div class="lang-selector" title="Idioma">
+                <i class="fas fa-globe lang-icon"></i>
+                <select id="lang-select" aria-label="Idioma">
                     <option value="ES">ES</option>
                     <option value="EN">EN</option>
                 </select>
             </div>
             
             <!-- Dark Mode Switch -->
-            <div class="theme-switch-wrapper">
-                <span class="theme-label" style="font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; color: var(--text-primary);">MODO OSCURO</span>
+            <div class="theme-switch-wrapper" title="Cambiar entre Modo Claro y Modo Oscuro">
+                <span class="theme-label">TEMA</span>
                 <label class="theme-switch" for="checkbox-theme">
-                    <input type="checkbox" id="checkbox-theme" />
+                    <input type="checkbox" id="checkbox-theme" aria-label="Cambiar modo oscuro" />
                     <div class="slider round">
-                        <span class="on">ON</span>
-                        <span class="off">OFF</span>
+                        <span class="on"><i class="fas fa-moon"></i></span>
+                        <span class="off"><i class="fas fa-sun"></i></span>
                     </div>
                 </label>
             </div>
@@ -93,27 +98,38 @@
                 </div>
             </div>
             <nav class="nav-menu" id="sidebar-nav">
-                <a href="#/" class="nav-item active" data-route="/"><i class="fas fa-home"></i> Itinerario</a>
-                <a href="#/dashboard" class="nav-item" data-route="/dashboard"><i class="fas fa-chart-line"></i> Dashboard</a>
-                <a href="#/reservas" class="nav-item" data-route="/reservas"><i class="fas fa-calendar-alt"></i> Reservas</a>
-                <a href="#/registro-salto" class="nav-item" data-route="/registro-salto"><i class="fas fa-inbox"></i> Registro de Salto</a>
-                <a href="#/checkin" class="nav-item" data-route="/checkin"><i class="fas fa-clipboard-check"></i> Check-in</a>
-                <a href="#/manifiesto" class="nav-item" data-route="/manifiesto"><i class="fas fa-plane-departure"></i> Manifiesto</a>
-                <a href="#/fids" class="nav-item" data-route="/fids"><i class="fas fa-tv"></i> Pantalla FIDS</a>
-                <a href="#/videografia" class="nav-item" data-route="/videografia"><i class="fas fa-video"></i> Videografía</a>
-                <a href="#/facturacion" class="nav-item" data-route="/facturacion"><i class="fas fa-file-invoice-dollar"></i> Facturación</a>
-                <a href="#/tienda" class="nav-item" data-route="/tienda"><i class="fas fa-shopping-basket"></i> Ventas Tienda</a>
-                <a href="#/generar-factura" class="nav-item" data-route="/generar-factura"><i class="fas fa-file-invoice"></i> Generar Factura</a>
-                <a href="#/caja" class="nav-item" data-route="/caja"><i class="fas fa-cash-register"></i> Caja Menor</a>
-                <a href="#/flota" class="nav-item" data-route="/flota"><i class="fas fa-plane"></i> Asignación de Flota</a>
-                <a href="#/inventario" class="nav-item" data-route="/inventario"><i class="fas fa-boxes"></i> Inventario</a>
-                <a href="#/asignacion" class="nav-item" data-route="/asignacion"><i class="fas fa-people-carry"></i> Asignación de Recursos</a>
-                <a href="#/rrhh" class="nav-item" data-route="/rrhh"><i class="fas fa-users"></i> RRHH y Tiempos</a>
-                <a href="#/historial" class="nav-item" data-route="/historial"><i class="fas fa-history"></i> Consulta Historial</a>
-                <a href="#/configuracion" class="nav-item" data-route="/configuracion"><i class="fas fa-cog"></i> Configuración</a>
+                <div class="nav-group-label">Operación Diaria</div>
+                <a href="#/" class="nav-item active" data-route="/"><i class="fas fa-home"></i><span>Itinerario</span></a>
+                <a href="#/dashboard" class="nav-item" data-route="/dashboard"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+                <a href="#/checkin" class="nav-item" data-route="/checkin"><i class="fas fa-clipboard-check"></i><span>Check-in</span></a>
+                <a href="#/manifiesto" class="nav-item" data-route="/manifiesto"><i class="fas fa-plane-departure"></i><span>Manifiesto</span></a>
+                <a href="#/fids" class="nav-item" data-route="/fids"><i class="fas fa-tv"></i><span>Pantalla FIDS</span></a>
+                <a href="#/videografia" class="nav-item" data-route="/videografia"><i class="fas fa-video"></i><span>Videografía</span></a>
+
+                <div class="nav-group-label">Comercial y Reservas</div>
+                <a href="#/reservas" class="nav-item" data-route="/reservas"><i class="fas fa-calendar-alt"></i><span>Reservas</span></a>
+                <a href="#/registro-salto" class="nav-item" data-route="/registro-salto"><i class="fas fa-inbox"></i><span>Registro de Salto</span></a>
+                <a href="#/historial" class="nav-item" data-route="/historial"><i class="fas fa-history"></i><span>Consulta Historial</span></a>
+
+                <div class="nav-group-label">Finanzas y Ventas</div>
+                <a href="#/facturacion" class="nav-item" data-route="/facturacion"><i class="fas fa-file-invoice-dollar"></i><span>Facturación</span></a>
+                <a href="#/tienda" class="nav-item" data-route="/tienda"><i class="fas fa-shopping-basket"></i><span>Ventas Tienda</span></a>
+                <a href="#/generar-factura" class="nav-item" data-route="/generar-factura"><i class="fas fa-file-invoice"></i><span>Generar Factura</span></a>
+                <a href="#/caja" class="nav-item" data-route="/caja"><i class="fas fa-cash-register"></i><span>Caja Menor</span></a>
+
+                <div class="nav-group-label">Flota y Recursos</div>
+                <a href="#/flota" class="nav-item" data-route="/flota"><i class="fas fa-plane"></i><span>Asignación de Flota</span></a>
+                <a href="#/inventario" class="nav-item" data-route="/inventario"><i class="fas fa-boxes"></i><span>Inventario</span></a>
+                <a href="#/asignacion" class="nav-item" data-route="/asignacion"><i class="fas fa-people-carry"></i><span>Asignación de Recursos</span></a>
+                <a href="#/rrhh" class="nav-item" data-route="/rrhh"><i class="fas fa-users"></i><span>RRHH y Tiempos</span></a>
+
+                <div class="nav-group-label">Sistema</div>
+                <a href="#/configuracion" class="nav-item" data-route="/configuracion"><i class="fas fa-cog"></i><span>Configuración</span></a>
+
                 <div class="nav-separator"></div>
-                <a href="#/b2c" class="nav-item b2c-link" data-route="/b2c"><i class="fas fa-mobile-alt"></i> Portal B2C (Cliente)</a>
-                <a href="#/autogestion" class="nav-item b2c-link" data-route="/autogestion"><i class="fas fa-globe"></i> Portal Autogestión</a>
+                <div class="nav-group-label">Portales Públicos</div>
+                <a href="#/b2c" class="nav-item b2c-link" data-route="/b2c"><i class="fas fa-mobile-alt"></i><span>Portal B2C (Cliente)</span></a>
+                <a href="#/autogestion" class="nav-item b2c-link" data-route="/autogestion"><i class="fas fa-globe"></i><span>Portal Autogestión</span></a>
 
             </nav>
             <div class="sidebar-footer">
@@ -131,8 +147,8 @@
     </div>
 
     <!-- Scripts -->
-    <script src="./js/components.js?v=2.9"></script>
-    <script src="./js/modules/login.js?v=2.4"></script>
+    <script src="./js/components.js?v=3.0"></script>
+    <script src="./js/modules/login.js?v=3.0"></script>
     <script src="./js/modules/home.js?v=2.9"></script>
     <script src="./js/modules/dashboard.js?v=2.4"></script>
     <script src="./js/modules/booking.js?v=2.9"></script>
@@ -140,7 +156,7 @@
     <script src="./js/modules/reservations.js?v=2.8"></script>
     <script src="./js/modules/b2c-form.js?v=2.8"></script>
     <script src="./js/modules/billing.js?v=2.9"></script>
-    <script src="./js/modules/store.js?v=2.9"></script>
+    <script src="./js/modules/store.js?v=3.0"></script>
     <script src="./js/modules/checkin.js?v=2.9"></script>
     <script src="./js/modules/manifest.js?v=2.7"></script>
     <script src="./js/modules/settings.js?v=2.8"></script>
@@ -150,11 +166,11 @@
     <script src="./js/modules/fleet.js?v=2.9"></script>
     <script src="./js/modules/hrms.js?v=2.9"></script>
     <script src="./js/modules/inventory.js?v=2.4"></script>
-    <script src="./js/modules/assignment.js?v=2.4"></script>
+    <script src="./js/modules/assignment.js?v=3.0"></script>
     <script src="./js/modules/finance.js?v=2.9"></script>
     <script src="./js/modules/fids.js?v=2.9"></script>
     <script src="./js/modules/media.js?v=2.4"></script>
     <script src="./js/modules/invoicing.js?v=2.9"></script>
-    <script src="./js/app.js?v=2.9"></script>
+    <script src="./js/app.js?v=3.0"></script>
 </body>
 </html>

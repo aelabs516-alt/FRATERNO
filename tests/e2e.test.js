@@ -1996,11 +1996,37 @@ test('3.13 [Visualización Adaptativa] Detección Computador / Tablet / Celular,
     win.detectDevice();
     assert.ok(!sidebar.classList.contains('open'), 'Al volver a escritorio el menú drawer debe cerrarse');
 
-    // 6. Integridad de css/styles.css (llaves balanceadas y reglas tablet + celular presentes)
+    // 6. Integridad de css/styles.css (llaves balanceadas y reglas tablet + celular + tema claro/oscuro presentes)
     const cssText = fs.readFileSync(path.join(__dirname, '../css/styles.css'), 'utf8');
     const opens = (cssText.match(/\{/g) || []).length;
     const closes = (cssText.match(/\}/g) || []).length;
     assert.equal(opens, closes, `css/styles.css debe tener llaves CSS balanceadas (${opens} vs ${closes})`);
     assert.ok(cssText.includes('body.device-tablet') && cssText.includes('body.device-mobile'));
     assert.ok(cssText.includes('.fids-center-logo') && cssText.includes('.checkin-kanban-board') && cssText.includes('#gantt-container'));
+    assert.ok(cssText.includes('color-scheme: light') && cssText.includes('color-scheme: dark') && cssText.includes('.nav-group-label'));
+
+    // 7. Sincronización de Tema Claro / Oscuro (window.applyTheme) y Pantalla de Login rediseñada
+    win.applyTheme('dark', true);
+    assert.ok(doc.body.classList.contains('dark-mode'));
+    assert.equal(doc.body.getAttribute('data-theme'), 'dark');
+    assert.equal(win.localStorage.getItem('fraterno_theme'), 'dark');
+    assert.ok(doc.querySelector('.logo img').src.includes('logo_dark.png'));
+
+    win.applyTheme('light', true);
+    assert.ok(doc.body.classList.contains('light-mode'));
+    assert.equal(doc.body.getAttribute('data-theme'), 'light');
+    assert.ok(doc.querySelector('.logo img').src.includes('logo.png'));
+
+    // Probar Login rediseñado (toggle mostrar contraseña + toggle tema)
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    const loginPass = doc.getElementById('login-pass');
+    const togglePassBtn = doc.getElementById('login-toggle-pass');
+    const loginThemeBtn = doc.getElementById('login-theme-toggle');
+    assert.ok(loginPass && togglePassBtn && loginThemeBtn, 'Login debe incluir controles modernos de visibilidad de contraseña y cambio de tema');
+    togglePassBtn.click();
+    assert.equal(loginPass.type, 'text', 'Al pulsar el ícono de ojo, la contraseña debe mostrarse');
+    loginThemeBtn.click();
+    assert.ok(doc.body.classList.contains('dark-mode'), 'El botón de tema en Login debe activar modo oscuro');
 });

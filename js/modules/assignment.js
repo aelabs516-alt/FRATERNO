@@ -82,46 +82,46 @@ window.Modules.assignment = {
                 const assignedRigId = window.AppData.instructorAssignments[inst.id];
                 
                 const card = document.createElement('div');
-                card.style.background = 'rgba(15, 23, 42, 0.4)';
-                card.style.backdropFilter = 'blur(12px)';
-                card.style.WebkitBackdropFilter = 'blur(12px)';
-                card.style.border = '1px solid rgba(255,255,255,0.05)';
-                card.style.borderRadius = '12px';
-                card.style.padding = '1.5rem';
+                card.style.background = 'var(--bg-surface)';
+                card.style.border = '1px solid var(--border-color)';
+                card.style.borderRadius = '14px';
+                card.style.padding = '1.25rem 1.5rem';
                 card.style.display = 'flex';
                 card.style.justifyContent = 'space-between';
                 card.style.alignItems = 'center';
                 card.style.flexWrap = 'wrap';
                 card.style.gap = '1rem';
-                card.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)';
-                card.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease';
+                card.style.boxShadow = 'var(--shadow-sm)';
+                card.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease';
                 
                 card.onmouseover = () => {
                     card.style.transform = 'translateY(-2px)';
-                    card.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+                    card.style.boxShadow = 'var(--shadow-md)';
+                    card.style.borderColor = 'var(--brand-action)';
                 };
                 card.onmouseout = () => {
                     card.style.transform = 'translateY(0)';
-                    card.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)';
+                    card.style.boxShadow = 'var(--shadow-sm)';
+                    card.style.borderColor = 'var(--border-color)';
                 };
                 
                 let selectHtml = '';
                 if(assignedRigId) {
                     selectHtml = `
-                        <div style="display: flex; align-items: center; gap: 1rem; background: rgba(16, 185, 129, 0.1); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
-                            <span style="color: var(--brand-success); font-weight: bold;"><i class="fas fa-parachute-box"></i> Equipo ${escapeHTML(assignedRigId)} Asignado</span>
-                            <button class="btn btn-release" data-id="${inst.id}" style="background: var(--brand-danger); color: white; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px rgba(239, 68, 68, 0.3); transition: background 0.2s;"><i class="fas fa-unlink"></i> Desasignar</button>
+                        <div style="display: flex; align-items: center; gap: 1rem; background: rgba(16, 185, 129, 0.12); padding: 0.5rem 1rem; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.28); flex-wrap: wrap;">
+                            <span style="color: var(--brand-success); font-weight: 700;"><i class="fas fa-parachute-box"></i> Equipo ${escapeHTML(assignedRigId)} Asignado</span>
+                            <button class="btn btn-danger btn-release" data-id="${inst.id}" style="padding: 0.45rem 1rem;"><i class="fas fa-unlink"></i> Desasignar</button>
                         </div>
                     `;
                 } else {
                     const options = availableRigs.map(r => `<option value="${escapeHTML(r.id)}">Equipo ${escapeHTML(r.id)}</option>`).join('');
                     selectHtml = `
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <select class="form-control sel-rig" data-id="${inst.id}" style="width: 200px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <select class="form-control sel-rig" data-id="${inst.id}" style="width: 200px;">
                                 <option value="">Seleccione Equipo...</option>
                                 ${options}
                             </select>
-                            <button class="btn btn-primary btn-claim" data-id="${inst.id}" style="padding: 0.5rem 1rem; font-weight: bold; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);"><i class="fas fa-hand-paper"></i> Asignar</button>
+                            <button class="btn btn-primary btn-claim" data-id="${inst.id}" style="padding: 0.55rem 1rem;"><i class="fas fa-hand-paper"></i> Asignar</button>
                         </div>
                     `;
                 }
