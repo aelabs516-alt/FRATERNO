@@ -2030,3 +2030,537 @@ test('3.13 [Visualización Adaptativa] Detección Computador / Tablet / Celular,
     loginThemeBtn.click();
     assert.ok(doc.body.classList.contains('dark-mode'), 'El botón de tema en Login debe activar modo oscuro');
 });
+
+test('3.14 [Módulo Soporte] Reporte de novedad por usuario (imagen opcional), gestión exclusiva por admin01 y popup de solución al iniciar sesión', async () => {
+    const { win, doc } = buildSPAContext();
+    win.showAlert = () => {};
+
+    win.AppData.users = [
+        { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: '01Fraterno*' },
+        { id: 'usr_op1', name: 'Laura Operadora', username: 'laura_op', role: 'Administrador', password: '1234' },
+        { id: 'usr_v1', name: 'Carlos Ventas', username: 'carlos_v', role: 'Asesor de Ventas', password: '1234' }
+    ];
+    win.AppData.supportTickets = [];
+
+    // 1. Iniciar sesión como usuario distinto a admin01 (incluso teniendo rol Administrador)
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify(win.AppData.users[1]));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.location.hash = '#/';
+    win.router();
+
+    const btnSupport = doc.querySelector('.btn-support');
+    assert.ok(btnSupport, 'Debe existir el botón Soporte en el menú lateral');
+    assert.ok(!doc.getElementById('support-pending-badge'), 'Solo admin01 debe ver el contador de casos pendientes');
+
+    // Al hacer clic en Soporte como laura_op, se abre el formulario de reporte (NUNCA el panel de gestión)
+    btnSupport.click();
+    assert.ok(doc.getElementById('modal-support-report'), 'Debe abrir ventana de reporte de novedad para usuarios distintos a admin01');
+    assert.equal(doc.getElementById('modal-support-admin'), null, 'Un usuario distinto a admin01 NO debe ver el panel de gestión de casos');
+
+    // Verificar que el campo imagen NO es obligatorio
+    const imgInput = doc.getElementById('support-image-input');
+    assert.ok(imgInput && !imgInput.getAttribute('required'), 'El campo de imagen debe existir y ser opcional');
+
+    // Enviar caso #1 SIN imagen
+    doc.getElementById('support-reporter-name').value = 'Laura Operadora';
+    doc.getElementById('support-contact-number').value = '3005559988';
+    doc.getElementById('support-description').value = 'El filtro de fechas en Facturación no guarda el último rango.';
+    doc.getElementById('support-report-form').dispatchEvent({ type: 'submit' });
+
+    assert.equal(win.AppData.supportTickets.length, 1);
+    const tk1 = win.AppData.supportTickets[0];
+    assert.equal(tk1.code, 'SUP-0001');
+    assert.equal(tk1.createdByUsername, 'laura_op');
+    assert.equal(tk1.contactNumber, '3005559988');
+    assert.equal(tk1.imageDataUrl, '');
+    assert.equal(tk1.status, 'Pendiente');
+
+    // Enviar caso #2 CON imagen opcional
+    const resImgTicket = win.SupportSystem.createTicket({
+        reporterName: 'Laura Operadora',
+        contactNumber: '3005559988',
+        description: 'Botón desalineado en pantalla de Check-in.',
+        imageDataUrl: 'data:image/png;base64,MOCK_SCREENSHOT',
+        imageName: 'error_checkin.png'
+    });
+    assert.equal(resImgTicket.ok, true);
+    assert.equal(resImgTicket.ticket.code, 'SUP-0002');
+    assert.equal(resImgTicket.ticket.imageDataUrl, 'data:image/png;base64,MOCK_SCREENSHOT');
+
+    // Verificar que laura_op NO puede resolver casos ni llamando directamente al método
+    const denied = win.SupportSystem.resolveTicket(tk1.id, 'Intento no autorizado');
+    assert.equal(denied.ok, false, 'Solo admin01 puede resolver casos de soporte');
+    assert.equal(tk1.status, 'Pendiente');
+
+    // 2. Iniciar sesión como admin01 y gestionar casos desde el botón Soporte
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify(win.AppData.users[0]));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.router();
+
+    assert.ok(btnSupport.innerHTML.includes('support-pending-badge') && btnSupport.innerHTML.includes('2'), 'admin01 debe ver contador de 2 casos pendientes en el menú Soporte');
+
+    btnSupport.click();
+    const adminModal = doc.getElementById('modal-support-admin');
+    assert.ok(adminModal, 'admin01 debe abrir el panel de gestión de casos de soporte');
+    assert.ok(adminModal.innerHTML.includes('SUP-0001') && adminModal.innerHTML.includes('SUP-0002'));
+    assert.ok(adminModal.innerHTML.includes('Ver imagen adjunta'), 'El panel admin debe permitir visualizar la imagen adjunta cuando exista');
+
+    // Escribir solución para SUP-0001 y marcar como solucionado
+    const solInput = doc.querySelector(`.support-solution-input[data-ticket-id="${tk1.id}"]`);
+    const btnResolve = doc.querySelector(`.btn-resolve-support-ticket[data-ticket-id="${tk1.id}"]`);
+    assert.ok(solInput && btnResolve);
+    solInput.value = 'Se actualizó el módulo de Facturación y ya persiste correctamente el filtro de fechas.';
+    btnResolve.click();
+
+    assert.equal(tk1.status, 'Solucionado');
+    assert.equal(tk1.resolvedBy, 'admin01');
+    assert.equal(tk1.userNotified, false);
+    assert.ok(tk1.solution.includes('persiste correctamente el filtro de fechas'));
+    adminModal.remove();
+
+    // 3. Si inicia sesión OTRO usuario (carlos_v), NO debe ver el popup de solución de laura_op
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'carlos_v';
+    doc.getElementById('login-pass').value = '1234';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+    assert.equal(doc.getElementById('modal-support-resolved-notif'), null, 'Otro usuario no debe recibir notificaciones de casos ajenos');
+
+    // 4. Cuando laura_op inicia sesión, se abre automáticamente la ventana emergente con la solución dada
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'laura_op';
+    doc.getElementById('login-pass').value = '1234';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+
+    const notifModal = doc.getElementById('modal-support-resolved-notif');
+    assert.ok(notifModal, 'Al iniciar sesión el usuario que reportó el caso debe abrirse la ventana emergente de solución');
+    assert.ok(notifModal.innerHTML.includes('SUP-0001'), 'La ventana emergente debe mostrar el código del caso');
+    assert.ok(notifModal.innerHTML.includes('Se actualizó el módulo de Facturación y ya persiste correctamente el filtro de fechas.'), 'La ventana emergente debe mostrar la solución dada');
+
+    // Al pulsar Entendido, se marca como notificado y NO reaparece en el siguiente inicio de sesión
+    doc.getElementById('btn-support-notif-accept').click();
+    assert.equal(doc.getElementById('modal-support-resolved-notif'), null);
+    assert.equal(tk1.userNotified, true);
+
+    // Nuevo inicio de sesión de laura_op: no debe volver a mostrarse el caso ya notificado
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'laura_op';
+    doc.getElementById('login-pass').value = '1234';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+    assert.equal(doc.getElementById('modal-support-resolved-notif'), null, 'Un caso ya notificado no debe volver a abrir popup al iniciar sesión nuevamente');
+});
+
+test('3.15 [Factor de Seguridad de Contraseñas] Exige mínimo 8 caracteres, mayúsculas, minúsculas, números y caracteres especiales en PasswordPolicy y edición/cambio de clave', () => {
+    const { win, doc } = buildSPAContext();
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador' }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+
+    const alertsShown = [];
+    win.showAlert = (msg, opts) => alertsShown.push({ msg, opts });
+
+    win.AppData.users = [
+        { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: '01Fraterno*' }
+    ];
+
+    win.location.hash = '#/configuracion';
+    win.router();
+
+    const usrName = doc.getElementById('usr-name');
+    const usrUsername = doc.getElementById('usr-username');
+    const usrCedula = doc.getElementById('usr-cedula');
+    const usrPass = doc.getElementById('usr-pass');
+    const btnCreate = doc.getElementById('btn-create-usr');
+    const btnGen = doc.getElementById('btn-generate-secure-pass');
+
+    // Al registrar nuevo usuario, el campo de Contraseña Segura NO debe mostrarse
+    const editPassFields = doc.getElementById('usr-edit-password-fields');
+    assert.ok(
+        editPassFields.style.display === 'none' || String(editPassFields.getAttribute('style') || '').includes('display: none'),
+        'El campo de contraseña no debe mostrarse al registrar un nuevo usuario'
+    );
+
+    // 1. Validar política PasswordPolicy contra cada criterio faltante
+    const invalidPasswords = [
+        '',               // vacía
+        '1234',           // muy corta y solo números
+        'Ab1!xyz',        // solo 7 caracteres
+        'fraterno1!',     // sin mayúscula
+        'FRATERNO1!',     // sin minúscula
+        'Fraterno!@',     // sin número
+        'Fraterno123'     // sin carácter especial
+    ];
+
+    for (const badPwd of invalidPasswords) {
+        assert.equal(win.PasswordPolicy.validate(badPwd).valid, false, `PasswordPolicy debe rechazar contraseña insegura: "${badPwd}"`);
+    }
+
+    // 2. Crear usuario con cédula -> contraseña automática <cedula>Fp* (cumple PasswordPolicy)
+    usrName.value = 'Ana Seguridad';
+    usrUsername.value = 'ana_sec';
+    usrCedula.value = '10203040';
+    btnCreate.click();
+    assert.equal(win.AppData.users.length, 2, 'Debe crear usuario con contraseña automática basada en la cédula');
+    const created = win.AppData.users.find(u => u.username === 'ana_sec');
+    assert.equal(created.password, '10203040Fp*');
+    assert.equal(win.PasswordPolicy.validate(created.password).valid, true);
+
+    // 3. Verificar indicador en tiempo real y generador automático de clave segura
+    usrPass.value = 'Fraterno2026*';
+    usrPass.dispatchEvent({ type: 'input' });
+    assert.ok(doc.getElementById('usr-pass-strength-label').textContent.includes('Segura (5/5)'));
+
+    btnGen.click();
+    const genPwd = usrPass.value;
+    assert.equal(win.PasswordPolicy.validate(genPwd).valid, true, `La contraseña autogenerada (${genPwd}) debe cumplir el 100% de los criterios`);
+
+    // 4. Edición de usuario: rechazar clave débil, permitir clave vacía (conserva actual) y permitir nueva clave segura
+    btnCreate.dataset.editId = created.id;
+    usrName.value = 'Ana Seguridad Edit';
+    usrUsername.value = 'ana_sec';
+    usrPass.value = 'debil123';
+    btnCreate.click();
+    assert.equal(created.password, '10203040Fp*', 'Al editar, no debe permitir cambiar por una contraseña débil');
+
+    usrPass.value = '';
+    btnCreate.click();
+    assert.equal(created.name, 'Ana Seguridad Edit', 'Al editar dejando contraseña vacía, conserva la clave actual');
+    assert.equal(created.password, '10203040Fp*');
+
+    btnCreate.dataset.editId = created.id;
+    usrName.value = 'Ana Seguridad Edit';
+    usrUsername.value = 'ana_sec';
+    usrPass.value = 'NuevaClave#99';
+    btnCreate.click();
+    assert.equal(created.password, 'NuevaClave#99', 'Al editar con nueva contraseña segura debe actualizarse correctamente');
+});
+
+test('3.16 [Seguridad Usuarios Activos] Mantiene siempre oculto y protegido al usuario Admin Master (admin01) mientras sigue activo', () => {
+    const { win, doc } = buildSPAContext();
+    const alertsShown = [];
+    win.showAlert = (msg, opts) => alertsShown.push({ msg, opts });
+
+    win.AppData.users = [
+        { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: '01Fraterno*' }
+    ];
+
+    // 1. Con solo admin01 en el sistema, Usuarios Activos no debe mostrarlo
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador' }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.location.hash = '#/configuracion';
+    win.router();
+
+    let tbody = doc.getElementById('table-usr');
+    let rowsHtml = tbody.children.map(tr => tr.innerHTML).join('\n');
+    assert.equal(tbody.children.length, 1, 'Con solo admin01 debe mostrar únicamente la fila de estado vacío');
+    assert.ok(rowsHtml.includes('No hay usuarios adicionales registrados'), 'Debe mostrar el mensaje de lista vacía');
+    assert.ok(!rowsHtml.includes('admin01'), 'admin01 nunca debe renderizarse en Usuarios Activos');
+    assert.ok(!rowsHtml.includes('Admin Master'), 'Admin Master nunca debe renderizarse en Usuarios Activos');
+    assert.ok(!rowsHtml.includes('usr_admin'), 'El id usr_admin nunca debe aparecer en Usuarios Activos');
+    assert.ok(!String(doc.getElementById('usr-username').getAttribute('placeholder') || '').toLowerCase().includes('admin01'), 'El placeholder del campo usuario no debe revelar admin01');
+
+    // 2. Agregar usuarios adicionales e iniciar sesión como otro Administrador
+    win.AppData.users.push(
+        { id: 'usr_laura', name: 'Laura Operadora', username: 'laura_op', role: 'Administrador', password: 'Password1!' },
+        { id: 'usr_carlos', name: 'Carlos Ventas', username: 'carlos_v', role: 'Asesor de Ventas', password: 'Password2@' }
+    );
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({ id: 'usr_laura', name: 'Laura Operadora', username: 'laura_op', role: 'Administrador' }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.router();
+
+    tbody = doc.getElementById('table-usr');
+    rowsHtml = tbody.children.map(tr => tr.innerHTML).join('\n');
+    assert.equal(tbody.children.length, 2, 'Solo deben renderizarse los 2 usuarios visibles (ocultando a admin01)');
+    assert.ok(rowsHtml.includes('laura_op') && rowsHtml.includes('carlos_v'), 'Los demás usuarios deben mostrarse normalmente en Usuarios Activos');
+    assert.ok(!rowsHtml.includes('admin01') && !rowsHtml.includes('Admin Master') && !rowsHtml.includes('usr_admin'), 'admin01 debe permanecer invisible para los demás usuarios en Usuarios Activos');
+
+    // 3. Bloquear creación duplicada / reserva de admin01 y Admin Master
+    const usrName = doc.getElementById('usr-name');
+    const usrUsername = doc.getElementById('usr-username');
+    const usrCedula = doc.getElementById('usr-cedula');
+    const usrPass = doc.getElementById('usr-pass');
+    const btnCreate = doc.getElementById('btn-create-usr');
+
+    usrName.value = 'Intruso';
+    usrUsername.value = 'ADMIN01';
+    usrCedula.value = '99887766';
+    btnCreate.click();
+    assert.equal(win.AppData.users.length, 3, 'No debe permitir crear un usuario con username admin01');
+
+    usrName.value = 'Admin Master';
+    usrUsername.value = 'otro_user';
+    usrCedula.value = '99887766';
+    btnCreate.click();
+    assert.equal(win.AppData.users.length, 3, 'No debe permitir crear un usuario con nombre reservado Admin Master');
+
+    // 4. Bloquear modificación forzada de usr_admin vía dataset.editId o renombrar otro usuario a admin01
+    btnCreate.dataset.editId = 'usr_admin';
+    usrName.value = 'Hackeado';
+    usrUsername.value = 'hacked';
+    usrPass.value = 'Hacked123!';
+    btnCreate.click();
+    const masterAfter = win.AppData.users.find(u => u.id === 'usr_admin');
+    assert.equal(masterAfter.username, 'admin01', 'No debe permitir modificar la cuenta protegida admin01');
+    assert.equal(masterAfter.password, '01Fraterno*', 'La contraseña de admin01 debe permanecer intacta');
+
+    btnCreate.dataset.editId = 'usr_carlos';
+    usrName.value = 'Carlos Ventas';
+    usrUsername.value = 'admin01';
+    usrPass.value = '';
+    btnCreate.click();
+    assert.equal(win.AppData.users.find(u => u.id === 'usr_carlos').username, 'carlos_v', 'No debe permitir renombrar otro usuario a admin01');
+
+    // 5. Confirmar que admin01 sigue completamente activo y puede iniciar sesión normalmente
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'admin01';
+    doc.getElementById('login-pass').value = '01Fraterno*';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    const logged = JSON.parse(win.sessionStorage.getItem('fraterno_user') || 'null');
+    assert.ok(logged && logged.username === 'admin01', 'admin01 debe seguir completamente activo para iniciar sesión');
+});
+
+test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio obligatorio en primer login y autogestión de contraseña por usuarios', async () => {
+    const { win, doc } = buildSPAContext();
+    const alertsShown = [];
+    win.showAlert = (msg, opts) => alertsShown.push({ msg, opts });
+
+    // 1. Verificar nueva contraseña por defecto para admin01 (en estado limpio, servidor y migración)
+    const blank = win.createBlankAppData();
+    assert.equal(blank.users[0].username, 'admin01');
+    assert.equal(blank.users[0].password, '01Fraterno*', 'La clave por defecto de admin01 debe ser 01Fraterno*');
+
+    const resetRes = await requestApp('POST', '/api/reset-state', { confirm: true });
+    assert.equal(resetRes.status, 200);
+    const resetBody = await resetRes.json();
+    assert.equal(resetBody.state.users[0].password, '01Fraterno*', 'El servidor debe sembrar admin01 con contraseña 01Fraterno*');
+
+    // Migración automática si existía clave legacy 'admin'
+    const legacyState = { users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }] };
+    assert.equal(win.migrateMasterAdminPassword(legacyState), true);
+    assert.equal(legacyState.users[0].password, '01Fraterno*');
+
+    // Contraseña antigua 'admin' debe ser rechazada; '01Fraterno*' debe autenticar correctamente
+    win.AppData = win.createBlankAppData();
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+
+    doc.getElementById('login-user').value = 'admin01';
+    doc.getElementById('login-pass').value = 'admin';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    assert.equal(win.sessionStorage.getItem('fraterno_user'), null, 'La contraseña anterior "admin" no debe permitir iniciar sesión');
+
+    doc.getElementById('login-user').value = 'admin01';
+    doc.getElementById('login-pass').value = '01Fraterno*';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+    assert.equal(JSON.parse(win.sessionStorage.getItem('fraterno_user')).username, 'admin01');
+    assert.equal(doc.getElementById('modal-change-password'), null, 'admin01 no debe recibir modal forzado de primer login');
+
+    // 2. Crear un usuario nuevo desde Configuración -> contraseña automática <cedula>Fp*, ventana emergente con Usuario/Contraseña y mustChangePassword = true
+    win.location.hash = '#/configuracion';
+    win.router();
+
+    const editPassBox = doc.getElementById('usr-edit-password-fields');
+    assert.ok(
+        editPassBox.style.display === 'none' || String(editPassBox.getAttribute('style') || '').includes('display: none'),
+        'El campo Contraseña Segura no debe aparecer al registrar un nuevo usuario'
+    );
+
+    // Sin cédula no debe crear el usuario
+    doc.getElementById('usr-name').value = 'Sofía Asesora';
+    doc.getElementById('usr-username').value = 'sofia_v';
+    doc.getElementById('usr-cedula').value = '';
+    doc.getElementById('usr-role').value = 'Asesor de Ventas';
+    doc.getElementById('btn-create-usr').click();
+    assert.equal(win.AppData.users.find(u => u.username === 'sofia_v'), undefined, 'La cédula debe ser obligatoria para generar la contraseña por defecto');
+
+    // Con cédula -> crea con contraseña <cedula>Fp* y muestra ventana emergente con Usuario y Contraseña
+    doc.getElementById('usr-cedula').value = '1.035.862.410';
+    doc.getElementById('btn-create-usr').click();
+
+    const sofiaRec = win.AppData.users.find(u => u.username === 'sofia_v');
+    assert.ok(sofiaRec, 'El nuevo usuario debe crearse correctamente');
+    assert.equal(sofiaRec.cedula, '1035862410');
+    assert.equal(sofiaRec.password, '1035862410Fp*', 'La contraseña por defecto debe ser la cédula acompañada de Fp*');
+    assert.equal(sofiaRec.mustChangePassword, true, 'Todo usuario recién creado debe exigir cambio de contraseña en su primer inicio de sesión');
+
+    const credsModal = doc.getElementById('modal-new-user-credentials');
+    assert.ok(credsModal, 'Al crear un usuario nuevo debe abrirse una ventana emergente con Usuario y Contraseña');
+    assert.ok(doc.getElementById('new-user-modal-username') && credsModal.innerHTML.includes('sofia_v'), 'La ventana emergente debe mostrar el Usuario creado');
+    assert.ok(doc.getElementById('new-user-modal-password') && credsModal.innerHTML.includes('1035862410Fp*'), 'La ventana emergente debe mostrar la Contraseña generada (<cedula>Fp*)');
+    doc.getElementById('btn-close-new-user-creds').click();
+    assert.equal(doc.getElementById('modal-new-user-credentials'), null);
+
+    // 3. Primer inicio de sesión de sofia_v con su contraseña por defecto (<cedula>Fp*) -> debe abrir modal obligatorio sin botón cerrar
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'sofia_v';
+    doc.getElementById('login-pass').value = '1035862410Fp*';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+
+    let modal = doc.getElementById('modal-change-password');
+    assert.ok(modal, 'En el primer inicio de sesión debe desplegarse el modal de cambio obligatorio de contraseña');
+    assert.equal(modal.dataset.forced, '1', 'El modal debe estar en modo obligatorio (forced)');
+    assert.equal(doc.getElementById('btn-pwd-close-top'), null, 'El modal obligatorio no debe permitir cerrarse con X');
+    assert.equal(doc.getElementById('pwd-current'), null, 'En el primer login no debe pedir contraseña actual sino establecer una nueva');
+
+    // Rechazar misma contraseña temporal (<cedula>Fp*), clave débil o confirmación distinta
+    doc.getElementById('pwd-new').value = '1035862410Fp*';
+    doc.getElementById('pwd-confirm').value = '1035862410Fp*';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    assert.equal(sofiaRec.mustChangePassword, true, 'No debe aceptar la misma contraseña inicial por defecto');
+    assert.ok(doc.getElementById('pwd-modal-error').textContent.includes('diferente'));
+
+    doc.getElementById('pwd-new').value = 'debil123';
+    doc.getElementById('pwd-confirm').value = 'debil123';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    assert.equal(sofiaRec.mustChangePassword, true, 'No debe aceptar contraseña que incumpla PasswordPolicy');
+
+    doc.getElementById('pwd-new').value = 'SofiaSegura#26';
+    doc.getElementById('pwd-confirm').value = 'OtraClave#26';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    assert.equal(sofiaRec.mustChangePassword, true, 'No debe aceptar confirmaciones que no coinciden');
+
+    // Establecer nueva contraseña personal válida
+    doc.getElementById('pwd-new').value = 'SofiaSegura#26';
+    doc.getElementById('pwd-confirm').value = 'SofiaSegura#26';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+
+    assert.equal(sofiaRec.mustChangePassword, false, 'Una vez cambiada la clave, mustChangePassword debe quedar en false');
+    assert.equal(sofiaRec.password, 'SofiaSegura#26');
+    assert.equal(doc.getElementById('modal-change-password'), null, 'El modal obligatorio debe cerrarse tras guardar la nueva contraseña');
+
+    // Segundo login de sofia_v: clave temporal rechazada, nueva clave aceptada sin pedir cambio obligatorio
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'sofia_v';
+    doc.getElementById('login-pass').value = '1035862410Fp*';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    assert.equal(win.sessionStorage.getItem('fraterno_user'), null, 'La contraseña temporal por defecto anterior no debe volver a funcionar');
+
+    doc.getElementById('login-user').value = 'sofia_v';
+    doc.getElementById('login-pass').value = 'SofiaSegura#26';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+    assert.equal(JSON.parse(win.sessionStorage.getItem('fraterno_user')).username, 'sofia_v');
+    assert.equal(doc.getElementById('modal-change-password'), null, 'En inicios de sesión posteriores no debe pedir cambio obligatorio');
+
+    // 4. Autogestión de contraseña por usuario estándar (Asesor de Ventas) sin administrador
+    const btnSelfPwd = doc.getElementById('btn-sidebar-change-password');
+    assert.ok(btnSelfPwd, 'Debe existir el botón Cambiar Contraseña accesible en el menú lateral para todos los usuarios');
+    btnSelfPwd.click();
+
+    modal = doc.getElementById('modal-change-password');
+    assert.ok(modal, 'Al dar clic en Cambiar Contraseña debe abrirse el modal de autogestión');
+    assert.equal(modal.dataset.forced, '0');
+    assert.ok(doc.getElementById('pwd-current'), 'El modo autogestión debe solicitar la contraseña actual');
+
+    // Clave actual incorrecta debe rechazarse
+    doc.getElementById('pwd-current').value = 'ClaveEquivocada1!';
+    doc.getElementById('pwd-new').value = 'MiClaveAuto$99';
+    doc.getElementById('pwd-confirm').value = 'MiClaveAuto$99';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    assert.equal(sofiaRec.password, 'SofiaSegura#26', 'No debe cambiar contraseña si la clave actual es incorrecta');
+    assert.ok(doc.getElementById('pwd-modal-error').textContent.includes('incorrecta'));
+
+    // Cambio autónomo exitoso
+    doc.getElementById('pwd-current').value = 'SofiaSegura#26';
+    doc.getElementById('pwd-new').value = 'MiClaveAuto$99';
+    doc.getElementById('pwd-confirm').value = 'MiClaveAuto$99';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    assert.equal(sofiaRec.password, 'MiClaveAuto$99', 'El usuario debe poder actualizar su contraseña autónomamente');
+    assert.equal(doc.getElementById('modal-change-password'), null);
+
+    // Iniciar sesión con la contraseña autogestionada
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+    doc.getElementById('login-user').value = 'sofia_v';
+    doc.getElementById('login-pass').value = 'MiClaveAuto$99';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    assert.equal(JSON.parse(win.sessionStorage.getItem('fraterno_user')).username, 'sofia_v', 'El usuario debe poder autenticarse con la contraseña cambiada por sí mismo');
+});
+
+test('3.18 [Seguridad Zona de Reinicio] Solo visible para admin01 (Admin Master) y exige contraseña para Restablecer Sistema en Blanco', async () => {
+    const { win, doc } = buildSPAContext();
+    const alertsShown = [];
+    win.showAlert = async (msg, opts) => { alertsShown.push({ msg, opts }); };
+    win.showConfirm = async () => true;
+
+    win.AppData = win.createBlankAppData();
+    win.AppData.users.push({
+        id: 'usr_otro_admin',
+        name: 'Laura Administradora',
+        username: 'laura_admin',
+        role: 'Administrador',
+        password: 'LauraPassword1!'
+    });
+    win.AppData.passengers = [{ id: 'pax_keep_1', name: 'Pasajero Activo' }];
+
+    // 1. Iniciar sesión como otro Administrador distinto a admin01 -> NO debe visualizar Zona de Reinicio
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_otro_admin', name: 'Laura Administradora', username: 'laura_admin', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.location.hash = '#/configuracion';
+    win.router();
+
+    assert.ok(doc.getElementById('content-backup'), 'La pestaña Backup de Datos debe existir');
+    assert.equal(doc.getElementById('reset-system-zone'), null, 'Un usuario distinto a admin01 NO debe ver la Zona de Reinicio');
+    assert.equal(doc.getElementById('btn-reset-system-blank'), null, 'El botón Restablecer Sistema en Blanco NO debe renderizarse para otros usuarios');
+
+    // 2. Iniciar sesión como admin01 (Admin Master) -> SÍ debe visualizar Zona de Reinicio
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.router();
+
+    const resetZone = doc.getElementById('reset-system-zone');
+    const btnReset = doc.getElementById('btn-reset-system-blank');
+    assert.ok(resetZone && btnReset, 'admin01 (Admin Master) debe visualizar la Zona de Reinicio y el botón de restablecimiento');
+
+    const flush = () => new Promise(r => setTimeout(r, 30));
+
+    // 3. Cancelar el prompt de contraseña -> NO debe borrar datos
+    let promptCalls = 0;
+    let promptInputType = null;
+    win.showPrompt = async (_msg, opts) => {
+        promptCalls++;
+        promptInputType = opts && opts.inputType;
+        return null;
+    };
+    btnReset.click();
+    await flush();
+    assert.equal(promptCalls, 1, 'Debe solicitar contraseña antes de restablecer');
+    assert.equal(promptInputType, 'password', 'El campo de contraseña debe ser tipo password');
+    assert.equal(win.AppData.passengers.length, 1, 'Si se cancela el ingreso de contraseña, no debe borrar datos');
+
+    // 4. Ingresar contraseña incorrecta -> debe alertar y NO borrar datos
+    win.showPrompt = async () => 'ClaveIncorrecta99!';
+    btnReset.click();
+    await flush();
+    assert.equal(win.AppData.passengers.length, 1, 'Con contraseña incorrecta no debe restablecer el sistema');
+    assert.ok(alertsShown.some(a => String(a.msg).includes('Contraseña incorrecta')), 'Debe notificar contraseña incorrecta');
+
+    // 5. Ingresar contraseña correcta de admin01 (01Fraterno*) -> debe restablecer el sistema en blanco
+    win.showPrompt = async () => '01Fraterno*';
+    btnReset.click();
+    await flush();
+    assert.equal(win.AppData.passengers.length, 0, 'Con la contraseña correcta de admin01 debe restablecer el sistema en blanco');
+    assert.equal(win.AppData.users.length, 1);
+    assert.equal(win.AppData.users[0].username, 'admin01');
+});

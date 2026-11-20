@@ -18,6 +18,23 @@ const pool = new Pool({
 
 // Versión de reinicio limpio (elimina datos de prueba previos una sola vez al desplegar/iniciar)
 const CLEAN_RESET_VERSION = 'clean_slate_2026_11_19_v1';
+const DEFAULT_MASTER_ADMIN_PASS = '01Fraterno*';
+
+function migrateMasterAdminPassword(state) {
+    if (!state || !Array.isArray(state.users)) return false;
+    let changed = false;
+    state.users.forEach(u => {
+        if (!u) return;
+        const uname = String(u.username || '').trim().toLowerCase();
+        const uid = String(u.id || '').trim().toLowerCase();
+        if ((uname === 'admin01' || uid === 'usr_admin') && u.password === 'admin') {
+            u.password = DEFAULT_MASTER_ADMIN_PASS;
+            u.mustChangePassword = false;
+            changed = true;
+        }
+    });
+    return changed;
+}
 
 function createBlankState() {
     return {
@@ -42,6 +59,7 @@ function createBlankState() {
         ponchera: [],
         maestroValoresVersion: 1,
         maestroValoresHistory: [],
+        supportTickets: [],
         restriccionSaltos: 'Sin restricción',
         zonaCerradaMotivo: '',
         emailAlertsLog: [],
@@ -49,7 +67,7 @@ function createBlankState() {
         enabledModules: {},
         backupConfig: {},
         noOpRules: { daysOfWeek: ['1', '2'], specificDates: [], exceptions: [] },
-        users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }]
+        users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: DEFAULT_MASTER_ADMIN_PASS, mustChangePassword: false }]
     };
 }
 
@@ -119,6 +137,13 @@ const initDB = async () => {
                 );
                 console.log('Test data wiped from PostgreSQL. System ready in blank state:', CLEAN_RESET_VERSION);
             } else {
+                if (migrateMasterAdminPassword(currentData)) {
+                    await pool.query(
+                        'UPDATE app_state SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1',
+                        [currentData]
+                    );
+                    console.log('Master admin password migrated to secure policy.');
+                }
                 console.log('Database initialized successfully');
             }
         }
@@ -149,10 +174,18 @@ app.get('/api/state', async (req, res) => {
         if (dbConnected) {
             const result = await pool.query('SELECT data FROM app_state WHERE id = 1');
             if (result.rows.length > 0) {
-                return res.json(result.rows[0].data);
+                const dbData = result.rows[0].data;
+                if (migrateMasterAdminPassword(dbData)) {
+                    await pool.query(
+                        'UPDATE app_state SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1',
+                        [dbData]
+                    );
+                }
+                return res.json(dbData);
             }
             return res.json({});
         }
+        migrateMasterAdminPassword(memoryFallbackState);
         return res.json(memoryFallbackState);
     } catch (err) {
         console.error('Error fetching state:', err.message);

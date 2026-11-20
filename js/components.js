@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initMobileMenu();
     initCustomAlerts();
+    if (window.SupportSystem && typeof window.SupportSystem.init === 'function') {
+        window.SupportSystem.init();
+    }
+    if (window.PasswordManager && typeof window.PasswordManager.init === 'function') {
+        window.PasswordManager.init();
+    }
 });
 
 // ==========================================
@@ -1933,5 +1939,1082 @@ window.TariffGuard = {
             changes,
             freezeStats
         };
+    }
+};
+
+// =====================================
+// Sistema de Soporte Técnico y Gestión de Casos (SupportSystem)
+// - Usuarios estándar: reportan novedad (Nombre, Contacto, Novedad, Imagen opcional)
+// - Exclusivo admin01: visualiza y gestiona todos los casos de soporte
+// - Al iniciar sesión el usuario reportante: popup automático con la solución brindada
+// =====================================
+window.SupportSystem = {
+    init() {
+        const supportBtns = document.querySelectorAll('.btn-support');
+        supportBtns.forEach(btn => {
+            if (btn.dataset && btn.dataset.supportBound === '1') return;
+            if (btn.dataset) btn.dataset.supportBound = '1';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.open();
+            });
+        });
+        this.updateSupportBadge();
+    },
+
+    getCurrentUser() {
+        try {
+            const raw = sessionStorage.getItem('fraterno_user');
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    isSupportAdmin(user = null) {
+        const u = user || this.getCurrentUser();
+        return !!(u && String(u.username || '').trim().toLowerCase() === 'admin01');
+    },
+
+    ensureStore() {
+        window.AppData = window.AppData || {};
+        if (!Array.isArray(window.AppData.supportTickets)) {
+            window.AppData.supportTickets = [];
+        }
+        return window.AppData.supportTickets;
+    },
+
+    getNextCode() {
+        const tickets = this.ensureStore();
+        let maxNum = 0;
+        tickets.forEach(t => {
+            const m = String(t.code || '').match(/(\d+)$/);
+            if (m) {
+                const n = parseInt(m[1], 10);
+                if (n > maxNum) maxNum = n;
+            }
+        });
+        return 'SUP-' + String(maxNum + 1).padStart(4, '0');
+    },
+
+    compressImageIfNeeded(dataUrl) {
+        return new Promise((resolve) => {
+            if (!dataUrl || typeof Image === 'undefined' || typeof document === 'undefined' || typeof document.createElement !== 'function') {
+                return resolve(dataUrl || '');
+            }
+            try {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const maxDim = 1200;
+                        let w = img.width || 0;
+                        let h = img.height || 0;
+                        if (!w || !h) return resolve(dataUrl);
+                        if (w > maxDim || h > maxDim) {
+                            const ratio = Math.min(maxDim / w, maxDim / h);
+                            w = Math.round(w * ratio);
+                            h = Math.round(h * ratio);
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx || typeof ctx.drawImage !== 'function' || typeof canvas.toDataURL !== 'function') {
+                            return resolve(dataUrl);
+                        }
+                        ctx.drawImage(img, 0, 0, w, h);
+                        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+                        resolve(compressed && compressed.length < dataUrl.length ? compressed : dataUrl);
+                    } catch (e) {
+                        resolve(dataUrl);
+                    }
+                };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            } catch (e) {
+                resolve(dataUrl);
+            }
+        });
+    },
+
+    createTicket({ reporterName, contactNumber, description, imageDataUrl = '', imageName = '' }) {
+        const name = String(reporterName || '').trim();
+        const contact = String(contactNumber || '').trim();
+        const desc = String(description || '').trim();
+
+        if (!name || !contact || !desc) {
+            return { ok: false, error: 'Por favor completa tu nombre, número de contacto y la descripción de la novedad.' };
+        }
+
+        const user = this.getCurrentUser();
+        const tickets = this.ensureStore();
+        const ticket = {
+            id: 'sup_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+            code: this.getNextCode(),
+            createdAt: new Date().toISOString(),
+            createdByUserId: user && user.id ? user.id : '',
+            createdByUsername: user && user.username ? String(user.username).trim() : '',
+            reporterName: name,
+            contactNumber: contact,
+            description: desc,
+            imageDataUrl: imageDataUrl || '',
+            imageName: imageName || '',
+            status: 'Pendiente',
+            solution: '',
+            resolvedAt: null,
+            resolvedBy: '',
+            userNotified: false,
+            notifiedAt: null
+        };
+
+        tickets.push(ticket);
+        if (typeof window.saveAppData === 'function') window.saveAppData();
+        this.updateSupportBadge();
+        return { ok: true, ticket };
+    },
+
+    resolveTicket(ticketId, solutionText) {
+        if (!this.isSupportAdmin()) {
+            return { ok: false, error: 'Acceso denegado: únicamente el usuario admin01 puede gestionar los casos de soporte.' };
+        }
+        const sol = String(solutionText || '').trim();
+        if (!sol) {
+            return { ok: false, error: 'Por favor ingresa la solución brindada antes de cerrar el caso.' };
+        }
+
+        const tickets = this.ensureStore();
+        const ticket = tickets.find(t => t.id === ticketId);
+        if (!ticket) {
+            return { ok: false, error: 'Caso de soporte no encontrado.' };
+        }
+
+        ticket.status = 'Solucionado';
+        ticket.solution = sol;
+        ticket.resolvedAt = new Date().toISOString();
+        ticket.resolvedBy = 'admin01';
+        ticket.userNotified = false;
+        ticket.notifiedAt = null;
+
+        if (typeof window.saveAppData === 'function') window.saveAppData();
+        this.updateSupportBadge();
+        return { ok: true, ticket };
+    },
+
+    getPendingResolvedNotificationsForUser(user = null) {
+        const u = user || this.getCurrentUser();
+        if (!u) return [];
+        const uName = String(u.username || '').trim().toLowerCase();
+        const uId = String(u.id || '').trim();
+        const tickets = this.ensureStore();
+
+        return tickets.filter(t => {
+            if (!t || t.status !== 'Solucionado' || t.userNotified) return false;
+            const byUser = uName && String(t.createdByUsername || '').trim().toLowerCase() === uName;
+            const byId = uId && String(t.createdByUserId || '').trim() === uId;
+            return byUser || byId;
+        });
+    },
+
+    acknowledgeNotifications(ticketIds) {
+        const ids = new Set(Array.isArray(ticketIds) ? ticketIds : []);
+        if (ids.size === 0) return;
+        const tickets = this.ensureStore();
+        const now = new Date().toISOString();
+        let changed = false;
+        tickets.forEach(t => {
+            if (ids.has(t.id) && !t.userNotified) {
+                t.userNotified = true;
+                t.notifiedAt = now;
+                changed = true;
+            }
+        });
+        if (changed && typeof window.saveAppData === 'function') {
+            window.saveAppData();
+        }
+    },
+
+    updateSupportBadge() {
+        const btn = document.querySelector('.btn-support');
+        if (!btn) return;
+        if (this.isSupportAdmin()) {
+            const pendingCount = this.ensureStore().filter(t => t.status !== 'Solucionado').length;
+            const badge = pendingCount > 0
+                ? ` <span id="support-pending-badge" style="background: var(--brand-danger); color: #fff; font-size: 0.7rem; font-weight: 800; padding: 0.1rem 0.45rem; border-radius: 999px; margin-left: 0.25rem;">${pendingCount}</span>`
+                : '';
+            btn.innerHTML = `<i class="fas fa-headset"></i> Soporte${badge}`;
+        } else {
+            btn.innerHTML = `<i class="fas fa-headset"></i> Soporte`;
+        }
+    },
+
+    open() {
+        // Cerrar drawer móvil/tablet si está abierto
+        const sb = document.getElementById('sidebar');
+        const bd = document.getElementById('sidebar-backdrop');
+        if (sb && sb.classList) sb.classList.remove('open');
+        if (bd && bd.classList) bd.classList.remove('open');
+
+        if (this.isSupportAdmin()) {
+            this.openAdminPanel();
+        } else {
+            this.openUserReportModal();
+        }
+    },
+
+    openImageLightbox(dataUrl, title = 'Imagen Adjunta') {
+        if (!dataUrl) return;
+        const existing = document.getElementById('modal-support-img-lightbox');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'modal-support-img-lightbox';
+        overlay.className = 'fraterno-modal-overlay';
+        overlay.style.display = 'flex';
+        overlay.style.zIndex = '4000';
+        overlay.innerHTML = `
+            <div class="fraterno-modal-card" style="width: 720px; max-width: 95vw; text-align: center;">
+                <button id="close-support-lightbox" class="btn" style="position: absolute; top: 1rem; right: 1rem; color: var(--text-secondary); font-size: 1.2rem;"><i class="fas fa-times"></i></button>
+                <h3 style="margin-bottom: 1rem;"><i class="fas fa-image" style="color: var(--brand-action);"></i> ${window.escapeHTML(title)}</h3>
+                <div style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem; margin-bottom: 1rem;">
+                    <img src="${dataUrl}" alt="Evidencia de soporte" style="max-width: 100%; max-height: 65vh; object-fit: contain; border-radius: 8px;">
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button type="button" class="btn btn-primary" id="btn-ok-support-lightbox">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        const close = () => overlay.remove();
+        overlay.querySelector('#close-support-lightbox').addEventListener('click', close);
+        overlay.querySelector('#btn-ok-support-lightbox').addEventListener('click', close);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    },
+
+    openUserReportModal() {
+        const existing = document.getElementById('modal-support-report');
+        if (existing) existing.remove();
+
+        const user = this.getCurrentUser();
+        const defaultName = user && user.name ? user.name : '';
+        const defaultContact = (user && (user.phone || user.tel || user.celular)) ? (user.phone || user.tel || user.celular) : '';
+
+        const overlay = document.createElement('div');
+        overlay.id = 'modal-support-report';
+        overlay.className = 'fraterno-modal-overlay';
+        overlay.style.display = 'flex';
+
+        overlay.innerHTML = `
+            <div class="fraterno-modal-card" style="width: 560px; max-width: 95vw; max-height: 92vh; overflow-y: auto;">
+                <button type="button" id="btn-support-close-top" class="btn" style="position: absolute; top: 1rem; right: 1rem; color: var(--text-secondary); font-size: 1.2rem;"><i class="fas fa-times"></i></button>
+                <h3><i class="fas fa-headset" style="color: var(--brand-action);"></i> Soporte Técnico — Reportar Novedad</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Cuéntanos la novedad o inconveniente que presentas con el sistema. Nuestro administrador gestionará tu caso y recibirás la respuesta al iniciar sesión.
+                </p>
+
+                <form id="support-report-form">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;" class="resp-grid-2">
+                        <div class="form-group">
+                            <label for="support-reporter-name">Tu Nombre *</label>
+                            <input type="text" id="support-reporter-name" class="form-control" value="${window.escapeHTML(defaultName)}" placeholder="Nombre completo" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="support-contact-number">Número de Contacto *</label>
+                            <input type="tel" id="support-contact-number" class="form-control" value="${window.escapeHTML(defaultContact)}" placeholder="Ej: 300 123 4567" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="support-description">Novedad con el sistema *</label>
+                        <textarea id="support-description" class="form-control" rows="4" placeholder="Describe qué ocurrió, en qué módulo y cualquier detalle útil..." required></textarea>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label for="support-image-input">Adjuntar Imagen / Captura de pantalla <span style="color: var(--text-muted); font-weight: 500;">(Opcional)</span></label>
+                        <input type="file" id="support-image-input" class="form-control" accept="image/*" style="padding: 0.5rem;">
+                        <div id="support-image-preview-wrap" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 10px; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <img id="support-image-preview" src="" alt="Vista previa" style="width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);">
+                                <span id="support-image-name" style="font-size: 0.84rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                            </div>
+                            <button type="button" id="support-remove-image" class="btn btn-outline" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; color: var(--brand-danger);"><i class="fas fa-trash"></i> Quitar</button>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                        <button type="button" class="btn btn-outline" id="btn-support-cancel">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="btn-support-submit"><i class="fas fa-paper-plane"></i> Enviar Caso</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        const close = () => overlay.remove();
+        overlay.querySelector('#btn-support-close-top').addEventListener('click', close);
+        overlay.querySelector('#btn-support-cancel').addEventListener('click', close);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+        let attachedImageDataUrl = '';
+        let attachedImageName = '';
+
+        const fileInput = overlay.querySelector('#support-image-input');
+        const previewWrap = overlay.querySelector('#support-image-preview-wrap');
+        const previewImg = overlay.querySelector('#support-image-preview');
+        const previewName = overlay.querySelector('#support-image-name');
+        const removeBtn = overlay.querySelector('#support-remove-image');
+
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) {
+                    attachedImageDataUrl = '';
+                    attachedImageName = '';
+                    previewWrap.style.display = 'none';
+                    return;
+                }
+                attachedImageName = file.name || 'captura.png';
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const rawUrl = ev.target && ev.target.result ? String(ev.target.result) : '';
+                    attachedImageDataUrl = await this.compressImageIfNeeded(rawUrl);
+                    previewImg.src = attachedImageDataUrl;
+                    previewName.textContent = attachedImageName;
+                    previewWrap.style.display = 'flex';
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                attachedImageDataUrl = '';
+                attachedImageName = '';
+                if (fileInput) fileInput.value = '';
+                previewWrap.style.display = 'none';
+            });
+        }
+
+        overlay.querySelector('#support-report-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const reporterName = overlay.querySelector('#support-reporter-name').value;
+            const contactNumber = overlay.querySelector('#support-contact-number').value;
+            const description = overlay.querySelector('#support-description').value;
+
+            const res = this.createTicket({
+                reporterName,
+                contactNumber,
+                description,
+                imageDataUrl: attachedImageDataUrl,
+                imageName: attachedImageName
+            });
+
+            if (!res.ok) {
+                if (window.showAlert) window.showAlert(res.error, { type: 'warning', title: 'Campos Obligatorios' });
+                else alert(res.error);
+                return;
+            }
+
+            close();
+            const msg = `Tu caso de soporte (${res.ticket.code}) fue enviado correctamente. Cuando sea gestionado y solucionado, recibirás un aviso emergente al iniciar sesión.`;
+            if (window.showAlert) window.showAlert(msg, { type: 'success', title: `Caso Registrado (${res.ticket.code})` });
+            else alert(msg);
+        });
+    },
+
+    openAdminPanel() {
+        if (!this.isSupportAdmin()) {
+            this.openUserReportModal();
+            return;
+        }
+
+        const existing = document.getElementById('modal-support-admin');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'modal-support-admin';
+        overlay.className = 'fraterno-modal-overlay';
+        overlay.style.display = 'flex';
+
+        let activeFilter = 'all';
+
+        const renderPanelBody = () => {
+            const tickets = this.ensureStore();
+            const pendingCount = tickets.filter(t => t.status !== 'Solucionado').length;
+            const resolvedCount = tickets.filter(t => t.status === 'Solucionado').length;
+
+            const filtered = [...tickets]
+                .filter(t => {
+                    if (activeFilter === 'pending') return t.status !== 'Solucionado';
+                    if (activeFilter === 'resolved') return t.status === 'Solucionado';
+                    return true;
+                })
+                .sort((a, b) => {
+                    // Pendientes primero, luego más recientes
+                    if (a.status !== b.status) return a.status === 'Pendiente' ? -1 : 1;
+                    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+                });
+
+            const listHtml = filtered.length === 0
+                ? `<div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary);">
+                        <i class="fas fa-inbox" style="font-size: 2.4rem; opacity: 0.35; display: block; margin-bottom: 0.65rem;"></i>
+                        No hay casos de soporte en esta categoría.
+                   </div>`
+                : filtered.map(t => {
+                    const isResolved = t.status === 'Solucionado';
+                    const dateStr = t.createdAt ? new Date(t.createdAt).toLocaleString('es-CO') : '—';
+                    const resDateStr = t.resolvedAt ? new Date(t.resolvedAt).toLocaleString('es-CO') : '';
+                    const statusBadge = isResolved
+                        ? `<span style="background: rgba(16, 185, 129, 0.14); color: var(--brand-success); border: 1px solid rgba(16, 185, 129, 0.35); padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700;"><i class="fas fa-check-circle"></i> Solucionado</span>`
+                        : `<span style="background: rgba(245, 158, 11, 0.14); color: var(--brand-warning); border: 1px solid rgba(245, 158, 11, 0.38); padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700;"><i class="fas fa-clock"></i> Pendiente</span>`;
+
+                    const imgSection = t.imageDataUrl
+                        ? `<div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                                <img src="${t.imageDataUrl}" alt="Adjunto" style="width: 72px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);">
+                                <button type="button" class="btn btn-outline btn-view-support-img" data-ticket-id="${window.escapeHTML(t.id)}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                                    <i class="fas fa-search-plus"></i> Ver imagen adjunta
+                                </button>
+                           </div>`
+                        : '';
+
+                    const actionSection = isResolved
+                        ? `<div style="margin-top: 0.85rem; padding: 0.85rem 1rem; border-radius: 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.28);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                    <strong style="color: var(--brand-success); font-size: 0.85rem;"><i class="fas fa-check-double"></i> Solución registrada (${window.escapeHTML(resDateStr)})</strong>
+                                    <span style="font-size: 0.76rem; color: var(--text-secondary);">
+                                        ${t.userNotified ? '<i class="fas fa-envelope-open"></i> Usuario ya notificado' : '<i class="fas fa-bell"></i> Se notificará al usuario al iniciar sesión'}
+                                    </span>
+                                </div>
+                                <p style="margin: 0; color: var(--text-primary); font-size: 0.9rem; white-space: pre-wrap;">${window.escapeHTML(t.solution)}</p>
+                           </div>`
+                        : `<div style="margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed var(--border-color);">
+                                <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">Solución para el usuario:</label>
+                                <textarea class="form-control support-solution-input" data-ticket-id="${window.escapeHTML(t.id)}" rows="2" placeholder="Describe la solución aplicada a esta novedad..."></textarea>
+                                <div style="display: flex; justify-content: flex-end; margin-top: 0.6rem;">
+                                    <button type="button" class="btn btn-primary btn-resolve-support-ticket" data-ticket-id="${window.escapeHTML(t.id)}" style="padding: 0.48rem 1rem; font-size: 0.85rem;">
+                                        <i class="fas fa-check"></i> Guardar Solución y Notificar Usuario
+                                    </button>
+                                </div>
+                           </div>`;
+
+                    return `
+                        <div class="support-ticket-card" data-ticket-id="${window.escapeHTML(t.id)}" style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-left: 4px solid ${isResolved ? 'var(--brand-success)' : 'var(--brand-warning)'}; border-radius: 12px; padding: 1rem 1.15rem; margin-bottom: 0.9rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                                    <strong style="font-family: var(--font-mono); color: var(--brand-action);">${window.escapeHTML(t.code)}</strong>
+                                    ${statusBadge}
+                                    <span style="font-size: 0.78rem; color: var(--text-secondary);">${window.escapeHTML(dateStr)}</span>
+                                </div>
+                                <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                                    <i class="fas fa-user-tag"></i> Usuario: <strong>${window.escapeHTML(t.createdByUsername || 'N/A')}</strong>
+                                </span>
+                            </div>
+                            <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: 0.86rem; color: var(--text-primary); margin-bottom: 0.55rem;">
+                                <span><i class="fas fa-user" style="color: var(--brand-action);"></i> <strong>${window.escapeHTML(t.reporterName)}</strong></span>
+                                <span><i class="fas fa-phone" style="color: var(--brand-success);"></i> ${window.escapeHTML(t.contactNumber)}</span>
+                            </div>
+                            <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; font-size: 0.9rem; color: var(--text-primary); white-space: pre-wrap;">
+                                ${window.escapeHTML(t.description)}
+                            </div>
+                            ${imgSection}
+                            ${actionSection}
+                        </div>
+                    `;
+                }).join('');
+
+            overlay.innerHTML = `
+                <div class="fraterno-modal-card" style="width: 840px; max-width: 95vw; max-height: 92vh; overflow-y: auto;">
+                    <button type="button" id="btn-support-admin-close-top" class="btn" style="position: absolute; top: 1rem; right: 1rem; color: var(--text-secondary); font-size: 1.2rem;"><i class="fas fa-times"></i></button>
+                    <h3><i class="fas fa-headset" style="color: var(--brand-action);"></i> Gestión de Casos de Soporte (admin01)</h3>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.15rem;">
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="support-admin-filters">
+                            <button type="button" class="btn ${activeFilter === 'all' ? 'btn-primary' : 'btn-outline'} btn-support-filter" data-filter="all">Todos (${tickets.length})</button>
+                            <button type="button" class="btn ${activeFilter === 'pending' ? 'btn-warning' : 'btn-outline'} btn-support-filter" data-filter="pending">Pendientes (${pendingCount})</button>
+                            <button type="button" class="btn ${activeFilter === 'resolved' ? 'btn-primary' : 'btn-outline'} btn-support-filter" data-filter="resolved">Solucionados (${resolvedCount})</button>
+                        </div>
+                    </div>
+
+                    <div id="support-admin-list">${listHtml}</div>
+
+                    <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
+                        <button type="button" class="btn btn-outline" id="btn-support-admin-close">Cerrar</button>
+                    </div>
+                </div>
+            `;
+
+            const close = () => overlay.remove();
+            overlay.querySelector('#btn-support-admin-close-top').addEventListener('click', close);
+            overlay.querySelector('#btn-support-admin-close').addEventListener('click', close);
+
+            overlay.querySelectorAll('.btn-support-filter').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    activeFilter = e.currentTarget.getAttribute('data-filter') || 'all';
+                    renderPanelBody();
+                });
+            });
+
+            overlay.querySelectorAll('.btn-view-support-img').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const tid = e.currentTarget.getAttribute('data-ticket-id');
+                    const tk = this.ensureStore().find(x => x.id === tid);
+                    if (tk && tk.imageDataUrl) {
+                        this.openImageLightbox(tk.imageDataUrl, `Adjunto del caso ${tk.code}`);
+                    }
+                });
+            });
+
+            overlay.querySelectorAll('.btn-resolve-support-ticket').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const tid = e.currentTarget.getAttribute('data-ticket-id');
+                    const input = overlay.querySelector(`.support-solution-input[data-ticket-id="${tid}"]`);
+                    const solText = input ? input.value : '';
+                    const res = this.resolveTicket(tid, solText);
+                    if (!res.ok) {
+                        if (window.showAlert) window.showAlert(res.error, { type: 'warning', title: 'Validación' });
+                        else alert(res.error);
+                        return;
+                    }
+                    renderPanelBody();
+                    const okMsg = `Caso ${res.ticket.code} marcado como Solucionado. Al iniciar sesión, el usuario (${res.ticket.createdByUsername || res.ticket.reporterName}) verá la ventana emergente con la solución registrada.`;
+                    if (window.showAlert) window.showAlert(okMsg, { type: 'success', title: 'Caso Solucionado' });
+                    else alert(okMsg);
+                });
+            });
+        };
+
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+        document.body.appendChild(overlay);
+        renderPanelBody();
+    },
+
+    checkAndNotifyResolvedTickets() {
+        const user = this.getCurrentUser();
+        if (!user) return false;
+        if (document.getElementById('modal-support-resolved-notif')) return false;
+
+        const pending = this.getPendingResolvedNotificationsForUser(user);
+        if (pending.length === 0) return false;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'modal-support-resolved-notif';
+        overlay.className = 'fraterno-modal-overlay';
+        overlay.style.display = 'flex';
+
+        const cardsHtml = pending.map(t => {
+            const resDateStr = t.resolvedAt ? new Date(t.resolvedAt).toLocaleString('es-CO') : '';
+            return `
+                <div style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-left: 4px solid var(--brand-success); border-radius: 12px; padding: 1rem 1.15rem; margin-bottom: 0.9rem; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <strong style="font-family: var(--font-mono); color: var(--brand-action);">${window.escapeHTML(t.code)}</strong>
+                        <span style="font-size: 0.78rem; color: var(--text-secondary);">Solucionado el ${window.escapeHTML(resDateStr)}</span>
+                    </div>
+                    <div style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 0.65rem;">
+                        <strong>Tu novedad reportada:</strong> ${window.escapeHTML(t.description)}
+                    </div>
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.32); border-radius: 8px; padding: 0.8rem 0.95rem;">
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--brand-success); margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.04em;">
+                            <i class="fas fa-check-circle"></i> Solución brindada:
+                        </div>
+                        <div style="font-size: 0.95rem; color: var(--text-primary); font-weight: 500; white-space: pre-wrap;">${window.escapeHTML(t.solution)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const titleText = pending.length === 1
+            ? '¡Tu Caso de Soporte Fue Solucionado!'
+            : `¡Tienes ${pending.length} Casos de Soporte Solucionados!`;
+
+        overlay.innerHTML = `
+            <div class="fraterno-modal-card" style="width: 580px; max-width: 95vw; max-height: 90vh; overflow-y: auto; border-top-color: var(--brand-success) !important;">
+                <h3><i class="fas fa-check-circle" style="color: var(--brand-success);"></i> ${titleText}</h3>
+                <p style="color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 1.15rem;">
+                    Hola <strong>${window.escapeHTML(user.name || user.username)}</strong>, el equipo de soporte ya dio solución a tu solicitud:
+                </p>
+                <div id="support-resolved-notif-items">${cardsHtml}</div>
+                <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
+                    <button type="button" class="btn btn-primary" id="btn-support-notif-accept" style="padding: 0.6rem 1.4rem;">
+                        <i class="fas fa-check"></i> Entendido
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        const ids = pending.map(t => t.id);
+        const acceptAndClose = () => {
+            this.acknowledgeNotifications(ids);
+            overlay.remove();
+        };
+        overlay.querySelector('#btn-support-notif-accept').addEventListener('click', acceptAndClose);
+        return true;
+    }
+};
+
+// =====================================
+// Política de Seguridad para Contraseñas (PasswordPolicy)
+// Requisitos: mínimo 8 caracteres, mayúsculas, minúsculas, números y caracteres especiales
+// =====================================
+window.PasswordPolicy = {
+    MIN_LENGTH: 8,
+
+    evaluate(password) {
+        const pwd = String(password || '');
+        const rules = {
+            minLength: pwd.length >= this.MIN_LENGTH,
+            hasUpper: /[A-ZÁÉÍÓÚÑ]/.test(pwd),
+            hasLower: /[a-záéíóúñ]/.test(pwd),
+            hasNumber: /[0-9]/.test(pwd),
+            hasSpecial: /[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñ\s]/.test(pwd)
+        };
+
+        const missing = [];
+        if (!rules.minLength) missing.push(`Mínimo ${this.MIN_LENGTH} caracteres`);
+        if (!rules.hasUpper) missing.push('Al menos una letra mayúscula (A-Z)');
+        if (!rules.hasLower) missing.push('Al menos una letra minúscula (a-z)');
+        if (!rules.hasNumber) missing.push('Al menos un número (0-9)');
+        if (!rules.hasSpecial) missing.push('Al menos un carácter especial (!@#$%^&*...)');
+
+        const score = Object.values(rules).filter(Boolean).length;
+        const valid = missing.length === 0;
+
+        let level = 'Vacía';
+        let color = 'var(--text-muted)';
+        if (pwd.length > 0) {
+            if (score <= 2) { level = 'Débil'; color = 'var(--brand-danger)'; }
+            else if (score === 3) { level = 'Media'; color = 'var(--brand-warning)'; }
+            else if (score === 4) { level = 'Buena'; color = 'var(--brand-action)'; }
+            else { level = 'Segura'; color = 'var(--brand-success)'; }
+        }
+
+        return { valid, score, maxScore: 5, level, color, rules, missing };
+    },
+
+    validate(password) {
+        const res = this.evaluate(password);
+        if (!res.valid) {
+            return {
+                valid: false,
+                error: 'La contraseña no cumple con el factor de seguridad requerido:\n• ' + res.missing.join('\n• '),
+                details: res
+            };
+        }
+        return { valid: true, error: null, details: res };
+    },
+
+    generateSecurePassword(length = 12) {
+        const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lower = 'abcdefghijkmnopqrstuvwxyz';
+        const nums = '23456789';
+        const specials = '!@#$%&*?-_+=';
+        const all = upper + lower + nums + specials;
+
+        const pick = (chars) => chars[Math.floor(Math.random() * chars.length)];
+        const chars = [pick(upper), pick(lower), pick(nums), pick(specials)];
+        const targetLen = Math.max(this.MIN_LENGTH, length);
+        while (chars.length < targetLen) {
+            chars.push(pick(all));
+        }
+        // Mezclar orden aleatoriamente (Fisher-Yates)
+        for (let i = chars.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        return chars.join('');
+    }
+};
+
+// =====================================
+// Gestión Autónoma y Primer Inicio de Sesión de Contraseñas (PasswordManager)
+// - Exige cambio obligatorio en primer inicio de sesión de usuarios nuevos
+// - Permite a cualquier usuario cambiar su contraseña sin contactar a un administrador
+// =====================================
+window.PasswordManager = {
+    init() {
+        const btns = document.querySelectorAll('.btn-change-password');
+        btns.forEach(btn => {
+            if (btn.dataset && btn.dataset.pwdBound === '1') return;
+            if (btn.dataset) btn.dataset.pwdBound = '1';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const sidebar = document.getElementById('sidebar');
+                const backdrop = document.getElementById('sidebar-backdrop');
+                if (sidebar && sidebar.classList) sidebar.classList.remove('open');
+                if (backdrop && backdrop.classList) backdrop.classList.remove('open');
+                this.openChangePasswordModal({ forced: false });
+            });
+        });
+    },
+
+    getCurrentUserRecord() {
+        let sessionUser = null;
+        try {
+            const raw = sessionStorage.getItem('fraterno_user');
+            if (raw) sessionUser = JSON.parse(raw);
+        } catch (e) {}
+        if (!sessionUser) return { sessionUser: null, record: null };
+
+        const users = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
+        let record = null;
+        if (sessionUser.id) {
+            record = users.find(u => u && u.id === sessionUser.id) || null;
+        }
+        if (!record && sessionUser.username) {
+            const targetUname = String(sessionUser.username).trim().toLowerCase();
+            record = users.find(u => u && String(u.username || '').trim().toLowerCase() === targetUname) || null;
+        }
+        return { sessionUser, record };
+    },
+
+    requiresPasswordChange() {
+        const { sessionUser, record } = this.getCurrentUserRecord();
+        if (!sessionUser) return false;
+        if (record) return record.mustChangePassword === true;
+        return sessionUser.mustChangePassword === true;
+    },
+
+    changePassword({ currentPassword = '', newPassword = '', confirmPassword = '', isFirstLogin = false } = {}) {
+        const { sessionUser, record } = this.getCurrentUserRecord();
+        if (!sessionUser || !record) {
+            return { ok: false, error: 'No se encontró una cuenta de usuario activa para actualizar.' };
+        }
+
+        const storedPass = record.password !== undefined ? String(record.password) : '1234';
+
+        if (!isFirstLogin) {
+            if (!currentPassword) {
+                return { ok: false, error: 'Debes ingresar tu contraseña actual.' };
+            }
+            if (String(currentPassword) !== storedPass) {
+                return { ok: false, error: 'La contraseña actual ingresada es incorrecta.' };
+            }
+        }
+
+        if (window.PasswordPolicy) {
+            const check = window.PasswordPolicy.validate(newPassword);
+            if (!check.valid) {
+                return { ok: false, error: check.error };
+            }
+        } else {
+            const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
+            if (!strongRegex.test(String(newPassword || ''))) {
+                return { ok: false, error: 'La contraseña debe tener mínimo 8 caracteres y combinar mayúsculas, minúsculas, números y caracteres especiales.' };
+            }
+        }
+
+        if (String(newPassword) !== String(confirmPassword)) {
+            return { ok: false, error: 'La confirmación no coincide con la nueva contraseña.' };
+        }
+
+        if (String(newPassword) === storedPass) {
+            return { ok: false, error: 'La nueva contraseña debe ser diferente a tu contraseña actual.' };
+        }
+
+        record.password = String(newPassword);
+        record.mustChangePassword = false;
+        record.passwordUpdatedAt = new Date().toISOString();
+
+        try {
+            const updatedSession = {
+                ...sessionUser,
+                id: record.id,
+                name: record.name,
+                username: record.username,
+                role: record.role,
+                photo: record.photo || sessionUser.photo || '',
+                mustChangePassword: false,
+                passwordUpdatedAt: record.passwordUpdatedAt
+            };
+            sessionStorage.setItem('fraterno_user', JSON.stringify(updatedSession));
+        } catch (e) {}
+
+        if (typeof window.saveAppData === 'function') {
+            window.saveAppData();
+        }
+
+        return { ok: true, user: record };
+    },
+
+    checkMandatoryPasswordChange() {
+        if (!this.requiresPasswordChange()) return false;
+        this.openChangePasswordModal({ forced: true });
+        return true;
+    },
+
+    openChangePasswordModal({ forced = false } = {}) {
+        const { sessionUser, record } = this.getCurrentUserRecord();
+        if (!sessionUser) return false;
+
+        const existing = document.getElementById('modal-change-password');
+        if (existing) {
+            if (forced && existing.dataset && existing.dataset.forced !== '1') {
+                existing.remove();
+            } else {
+                return true;
+            }
+        }
+
+        const displayName = window.escapeHTML((record && record.name) || sessionUser.name || sessionUser.username || 'Usuario');
+        const displayUser = window.escapeHTML((record && record.username) || sessionUser.username || '');
+
+        const overlay = document.createElement('div');
+        overlay.id = 'modal-change-password';
+        if (overlay.dataset) overlay.dataset.forced = forced ? '1' : '0';
+        overlay.className = 'modal-overlay';
+        overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(12, 35, 49, 0.78); backdrop-filter: blur(5px); z-index: 10050; display: flex; justify-content: center; align-items: center; padding: 1rem;';
+
+        overlay.innerHTML = `
+            <div style="background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 16px; width: 100%; max-width: 500px; max-height: 92vh; overflow-y: auto; box-shadow: 0 24px 60px rgba(0,0,0,0.38); padding: 1.75rem; position: relative;">
+                ${!forced ? `<button type="button" id="btn-pwd-close-top" aria-label="Cerrar" style="position: absolute; top: 1rem; right: 1rem; color: var(--text-muted); font-size: 1.2rem; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>` : ''}
+
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.65rem;">
+                    <div style="width: 44px; height: 44px; border-radius: 12px; background: ${forced ? 'rgba(245, 158, 11, 0.16)' : 'var(--brand-action-soft)'}; color: ${forced ? 'var(--brand-warning)' : 'var(--brand-action)'}; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
+                        <i class="fas ${forced ? 'fa-user-shield' : 'fa-key'}"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.15rem;">${forced ? 'Cambio de Contraseña Obligatorio' : 'Cambiar Mi Contraseña'}</h3>
+                        <div style="font-size: 0.82rem; color: var(--text-secondary);">${displayName}${displayUser ? ` (@${displayUser})` : ''}</div>
+                    </div>
+                </div>
+
+                ${forced
+                    ? `<div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 0.8rem 0.95rem; margin: 0.85rem 0 1.1rem 0; font-size: 0.86rem; color: var(--text-primary); line-height: 1.45;">
+                            <i class="fas fa-info-circle" style="color: var(--brand-warning); margin-right: 0.35rem;"></i>
+                            <strong>Primer inicio de sesión:</strong> Por tu seguridad, debes establecer una nueva contraseña personal diferente a la asignada inicialmente para continuar usando la plataforma.
+                       </div>`
+                    : `<p style="color: var(--text-secondary); font-size: 0.86rem; margin: 0.5rem 0 1.1rem 0;">Gestiona el cambio de tu contraseña de acceso en cualquier momento de forma segura y autónoma.</p>`
+                }
+
+                <div id="pwd-modal-error" style="display: none; background: rgba(220, 38, 38, 0.12); border: 1px solid rgba(220, 38, 38, 0.35); color: var(--brand-danger); border-radius: 10px; padding: 0.75rem 0.9rem; margin-bottom: 1rem; font-size: 0.84rem; white-space: pre-line; font-weight: 500;"></div>
+
+                <form id="form-change-password" autocomplete="off">
+                    ${!forced ? `
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="pwd-current">Contraseña Actual *</label>
+                        <div style="position: relative; display: flex; align-items: center;">
+                            <input type="password" id="pwd-current" class="form-control" placeholder="Ingresa tu contraseña actual" autocomplete="current-password" style="padding-right: 2.6rem;" required>
+                            <button type="button" id="btn-toggle-pwd-current" aria-label="Mostrar contraseña actual" style="position: absolute; right: 0.6rem; color: var(--text-muted); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>` : ''}
+
+                    <div class="form-group" style="margin-bottom: 0.85rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                            <label for="pwd-new" style="margin: 0;">Nueva Contraseña Segura *</label>
+                            <button type="button" id="btn-gen-pwd-new" style="font-size: 0.75rem; font-weight: 700; color: var(--brand-action); padding: 0; background: none; border: none; cursor: pointer;" title="Generar contraseña segura automáticamente">
+                                <i class="fas fa-magic"></i> Generar
+                            </button>
+                        </div>
+                        <div style="position: relative; display: flex; align-items: center;">
+                            <input type="password" id="pwd-new" class="form-control" placeholder="Mín. 8 chars (Mayúscula, minúscula, número y especial)" autocomplete="new-password" style="padding-right: 2.6rem;" required>
+                            <button type="button" id="btn-toggle-pwd-new" aria-label="Mostrar nueva contraseña" style="position: absolute; right: 0.6rem; color: var(--text-muted); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem 0.95rem; margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.8rem;">
+                            <strong style="color: var(--text-primary);"><i class="fas fa-shield-alt" style="color: var(--brand-action);"></i> Factor de Seguridad</strong>
+                            <span id="pwd-strength-label" style="font-weight: 700; color: var(--text-muted);">Sin ingresar</span>
+                        </div>
+                        <div style="width: 100%; height: 6px; border-radius: 999px; background: var(--border-color); overflow: hidden; margin-bottom: 0.6rem;">
+                            <div id="pwd-strength-bar" style="width: 0%; height: 100%; background: var(--text-muted); transition: width 0.25s ease, background-color 0.25s ease;"></div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.3rem 0.7rem; font-size: 0.77rem; color: var(--text-secondary);">
+                            <span id="pwd-rule-len"><i class="far fa-circle"></i> Mínimo 8 caracteres</span>
+                            <span id="pwd-rule-upper"><i class="far fa-circle"></i> Letra mayúscula (A-Z)</span>
+                            <span id="pwd-rule-lower"><i class="far fa-circle"></i> Letra minúscula (a-z)</span>
+                            <span id="pwd-rule-num"><i class="far fa-circle"></i> Número (0-9)</span>
+                            <span id="pwd-rule-spec"><i class="far fa-circle"></i> Carácter especial (!@#$...)</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label for="pwd-confirm">Confirmar Nueva Contraseña *</label>
+                        <div style="position: relative; display: flex; align-items: center;">
+                            <input type="password" id="pwd-confirm" class="form-control" placeholder="Repite la nueva contraseña" autocomplete="new-password" style="padding-right: 2.6rem;" required>
+                            <button type="button" id="btn-toggle-pwd-confirm" aria-label="Mostrar confirmación" style="position: absolute; right: 0.6rem; color: var(--text-muted); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div id="pwd-match-status" style="font-size: 0.78rem; margin-top: 0.35rem; min-height: 1.1em;"></div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap;">
+                        ${forced
+                            ? `<button type="button" class="btn btn-outline" id="btn-pwd-logout"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>`
+                            : `<button type="button" class="btn btn-outline" id="btn-pwd-cancel">Cancelar</button>`
+                        }
+                        <button type="submit" class="btn btn-primary" id="btn-pwd-submit">
+                            <i class="fas fa-check-circle"></i> ${forced ? 'Establecer Nueva Contraseña' : 'Guardar Nueva Contraseña'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const currentInput = overlay.querySelector('#pwd-current');
+        const newInput = overlay.querySelector('#pwd-new');
+        const confirmInput = overlay.querySelector('#pwd-confirm');
+        const errBox = overlay.querySelector('#pwd-modal-error');
+        const matchStatus = overlay.querySelector('#pwd-match-status');
+
+        const bindEyeToggle = (btnId, inputEl) => {
+            const btn = overlay.querySelector(btnId);
+            if (!btn || !inputEl) return;
+            btn.addEventListener('click', () => {
+                const showing = inputEl.type === 'text';
+                inputEl.type = showing ? 'password' : 'text';
+                btn.innerHTML = `<i class="fas ${showing ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+            });
+        };
+        bindEyeToggle('#btn-toggle-pwd-current', currentInput);
+        bindEyeToggle('#btn-toggle-pwd-new', newInput);
+        bindEyeToggle('#btn-toggle-pwd-confirm', confirmInput);
+
+        const updateStrengthUI = (pwdVal) => {
+            if (!window.PasswordPolicy) return;
+            const res = window.PasswordPolicy.evaluate(pwdVal);
+            const bar = overlay.querySelector('#pwd-strength-bar');
+            const label = overlay.querySelector('#pwd-strength-label');
+            if (bar) {
+                bar.style.width = `${(res.score / res.maxScore) * 100}%`;
+                bar.style.background = res.color;
+            }
+            if (label) {
+                label.textContent = pwdVal ? `${res.level} (${res.score}/${res.maxScore})` : 'Sin ingresar';
+                label.style.color = res.color;
+            }
+            const map = [
+                ['#pwd-rule-len', res.rules.minLength, 'Mínimo 8 caracteres'],
+                ['#pwd-rule-upper', res.rules.hasUpper, 'Letra mayúscula (A-Z)'],
+                ['#pwd-rule-lower', res.rules.hasLower, 'Letra minúscula (a-z)'],
+                ['#pwd-rule-num', res.rules.hasNumber, 'Número (0-9)'],
+                ['#pwd-rule-spec', res.rules.hasSpecial, 'Carácter especial (!@#$...)']
+            ];
+            map.forEach(([sel, passed, txt]) => {
+                const el = overlay.querySelector(sel);
+                if (!el) return;
+                el.style.color = passed ? 'var(--brand-success)' : 'var(--text-secondary)';
+                el.style.fontWeight = passed ? '600' : '400';
+                el.innerHTML = `<i class="${passed ? 'fas fa-check-circle' : 'far fa-circle'}"></i> ${txt}`;
+            });
+        };
+
+        const updateMatchUI = () => {
+            if (!matchStatus || !newInput || !confirmInput) return;
+            const nVal = newInput.value;
+            const cVal = confirmInput.value;
+            if (!cVal) {
+                matchStatus.textContent = '';
+                return;
+            }
+            if (nVal === cVal) {
+                matchStatus.style.color = 'var(--brand-success)';
+                matchStatus.innerHTML = '<i class="fas fa-check-circle"></i> Las contraseñas coinciden';
+            } else {
+                matchStatus.style.color = 'var(--brand-danger)';
+                matchStatus.innerHTML = '<i class="fas fa-times-circle"></i> Las contraseñas no coinciden';
+            }
+        };
+
+        if (newInput) {
+            newInput.addEventListener('input', () => {
+                updateStrengthUI(newInput.value);
+                updateMatchUI();
+            });
+        }
+        if (confirmInput) {
+            confirmInput.addEventListener('input', updateMatchUI);
+        }
+
+        const btnGen = overlay.querySelector('#btn-gen-pwd-new');
+        if (btnGen && newInput && window.PasswordPolicy) {
+            btnGen.addEventListener('click', () => {
+                const generated = window.PasswordPolicy.generateSecurePassword(12);
+                newInput.value = generated;
+                if (confirmInput) confirmInput.value = generated;
+                newInput.type = 'text';
+                if (confirmInput) confirmInput.type = 'text';
+                const toggleNew = overlay.querySelector('#btn-toggle-pwd-new');
+                const toggleConf = overlay.querySelector('#btn-toggle-pwd-confirm');
+                if (toggleNew) toggleNew.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                if (toggleConf) toggleConf.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                updateStrengthUI(generated);
+                updateMatchUI();
+            });
+        }
+
+        const close = () => {
+            if (overlay.parentNode) overlay.remove();
+        };
+
+        if (!forced) {
+            const btnCloseTop = overlay.querySelector('#btn-pwd-close-top');
+            const btnCancel = overlay.querySelector('#btn-pwd-cancel');
+            if (btnCloseTop) btnCloseTop.addEventListener('click', close);
+            if (btnCancel) btnCancel.addEventListener('click', close);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) close();
+            });
+        } else {
+            const btnLogout = overlay.querySelector('#btn-pwd-logout');
+            if (btnLogout) {
+                btnLogout.addEventListener('click', () => {
+                    close();
+                    sessionStorage.removeItem('fraterno_user');
+                    sessionStorage.removeItem('fraterno_role');
+                    sessionStorage.removeItem('fraterno_check_support_notifs');
+                    window.location.hash = '#/login';
+                });
+            }
+        }
+
+        const form = overlay.querySelector('#form-change-password');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                if (errBox) {
+                    errBox.style.display = 'none';
+                    errBox.textContent = '';
+                }
+                const res = this.changePassword({
+                    currentPassword: currentInput ? currentInput.value : '',
+                    newPassword: newInput ? newInput.value : '',
+                    confirmPassword: confirmInput ? confirmInput.value : '',
+                    isFirstLogin: forced
+                });
+                if (!res.ok) {
+                    if (errBox) {
+                        errBox.textContent = res.error;
+                        errBox.style.display = 'block';
+                    } else if (window.showAlert) {
+                        window.showAlert(res.error, { type: 'danger', title: 'Error al Cambiar Contraseña' });
+                    }
+                    return;
+                }
+
+                close();
+                const successMsg = forced
+                    ? '¡Contraseña actualizada! Ya puedes usar el sistema con tu nueva contraseña personal.'
+                    : 'Tu contraseña ha sido actualizada con éxito.';
+                if (window.showAlert) {
+                    window.showAlert(successMsg, { type: 'success', title: 'Contraseña Actualizada' });
+                } else {
+                    alert(successMsg);
+                }
+
+                if (forced && window.SupportSystem && sessionStorage.getItem('fraterno_check_support_notifs') === '1') {
+                    sessionStorage.removeItem('fraterno_check_support_notifs');
+                    window.SupportSystem.checkAndNotifyResolvedTickets();
+                }
+            });
+        }
+
+        return true;
     }
 };

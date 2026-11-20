@@ -691,6 +691,11 @@ button {
     color: var(--text-primary);
 }
 
+.btn-change-password:hover {
+    background: var(--brand-action-soft) !important;
+    color: var(--brand-action) !important;
+}
+
 .btn-logout:hover {
     background: rgba(220, 38, 38, 0.1) !important;
     color: var(--brand-danger) !important;

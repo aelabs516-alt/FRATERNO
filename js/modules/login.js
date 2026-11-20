@@ -88,17 +88,26 @@ window.Modules.login = {
             
             const users = window.AppData.users || [];
             
-            // Allow default hardcoded credentials if array is somehow corrupted
-            let matchedUser = users.find(u => u.username === userIn && (u.password === passIn || (u.password === undefined && passIn === '1234')));
+            let matchedUser = users.find(u =>
+                String(u.username || '').trim() === userIn &&
+                (u.password === passIn || (u.password === undefined && passIn === '1234'))
+            );
             
-            // Fallback for demo
-            if (userIn === 'admin01' && passIn === 'admin' && !matchedUser) {
-                matchedUser = { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' };
+            // Fallback de emergencia únicamente si admin01 no existe en el estado
+            const hasAdminInStore = users.some(u =>
+                String(u.username || '').trim().toLowerCase() === 'admin01' || u.id === 'usr_admin'
+            );
+            if (!hasAdminInStore && userIn === 'admin01' && passIn === '01Fraterno*' && !matchedUser) {
+                matchedUser = { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: '01Fraterno*', mustChangePassword: false };
+                window.AppData.users = users;
+                window.AppData.users.unshift(matchedUser);
+                if (window.saveAppData) window.saveAppData();
             }
 
             if (matchedUser) {
                 sessionStorage.setItem('fraterno_user', JSON.stringify(matchedUser));
                 sessionStorage.setItem('fraterno_role', matchedUser.role.toLowerCase().includes('venta') ? 'ventas' : 'admin');
+                sessionStorage.setItem('fraterno_check_support_notifs', '1');
                 
                 if (matchedUser.role.toLowerCase().includes('venta')) {
                     window.location.hash = '/reservas';
@@ -106,7 +115,12 @@ window.Modules.login = {
                     window.location.hash = '/';
                 }
             } else {
-                alert('Credenciales incorrectas. (Si es un usuario sin contraseña guardada, prueba con 1234)');
+                const errMsg = 'Usuario o contraseña incorrectos. Verifica tus credenciales e intenta nuevamente.';
+                if (window.showAlert) {
+                    window.showAlert(errMsg, { type: 'danger', title: 'Acceso Denegado' });
+                } else {
+                    alert(errMsg);
+                }
             }
         });
     }

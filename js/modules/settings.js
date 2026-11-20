@@ -1,6 +1,20 @@
 window.Modules = window.Modules || {};
 window.Modules.settings = {
+    isCurrentSessionMasterAdmin: () => {
+        try {
+            const raw = sessionStorage.getItem('fraterno_user');
+            if (!raw) return false;
+            const u = JSON.parse(raw);
+            if (!u) return false;
+            const uname = String(u.username || '').trim().toLowerCase();
+            const uid = String(u.id || '').trim().toLowerCase();
+            return uname === 'admin01' || uid === 'usr_admin';
+        } catch (e) {
+            return false;
+        }
+    },
     render: (container) => {
+        const isMasterAdminSession = window.Modules.settings.isCurrentSessionMasterAdmin();
         container.innerHTML = `
             <h2>Configuración del Sistema</h2>
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Administra las variables globales y submódulos.</p>
@@ -151,12 +165,50 @@ window.Modules.settings = {
                         <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Completa los datos y asigna los módulos de acceso permitidos.</p>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group" style="margin-bottom: 0;"><label>Usuario</label><input type="text" id="usr-username" class="form-control" placeholder="Ej: admin01"></div>
-                            <div class="form-group" style="margin-bottom: 0;"><label>Nombre Completo</label><input type="text" id="usr-name" class="form-control" placeholder="Nombre"></div>
-                            <div class="form-group" style="margin-bottom: 0;"><label>Cédula</label><input type="text" class="form-control"></div>
-                            <div class="form-group" style="margin-bottom: 0;"><label>Celular</label><input type="tel" class="form-control"></div>
-                            <div class="form-group" style="margin-bottom: 0;"><label>Correo</label><input type="email" class="form-control"></div>
-                            <div class="form-group" style="margin-bottom: 0;"><label>Contraseña</label><input type="password" id="usr-pass" class="form-control" placeholder="1234"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label for="usr-username">Usuario *</label><input type="text" id="usr-username" class="form-control" placeholder="Ej: operador01"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label for="usr-name">Nombre Completo *</label><input type="text" id="usr-name" class="form-control" placeholder="Nombre"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label for="usr-cedula">Cédula *</label><input type="text" id="usr-cedula" class="form-control" placeholder="Ej: 1020304050"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label for="usr-phone">Celular</label><input type="tel" id="usr-phone" class="form-control" placeholder="Ej: 3001234567"></div>
+                            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;"><label for="usr-email">Correo</label><input type="email" id="usr-email" class="form-control" placeholder="correo@ejemplo.com"></div>
+
+                            <div id="usr-default-pass-info" style="grid-column: span 2; background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.75rem 0.95rem; font-size: 0.82rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.6rem;">
+                                <i class="fas fa-key" style="color: var(--brand-action); font-size: 1rem; flex-shrink: 0;"></i>
+                                <span><strong>Contraseña inicial automática:</strong> Se asignará por defecto con el número de cédula acompañado de <code>Fp*</code> y deberá cambiarse en el primer inicio de sesión.</span>
+                            </div>
+
+                            <!-- Solo visible al editar un usuario existente (nunca al registrar nuevo usuario) -->
+                            <div id="usr-edit-password-fields" style="display: none; grid-column: span 2;">
+                                <div class="form-group" style="margin-bottom: 0.75rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                        <label for="usr-pass" style="margin: 0;">Nueva Contraseña (opcional al editar)</label>
+                                        <button type="button" id="btn-generate-secure-pass" style="font-size: 0.75rem; font-weight: 700; color: var(--brand-action); padding: 0; background: none; border: none; cursor: pointer;" title="Generar contraseña segura automáticamente">
+                                            <i class="fas fa-magic"></i> Generar
+                                        </button>
+                                    </div>
+                                    <div style="position: relative; display: flex; align-items: center;">
+                                        <input type="password" id="usr-pass" class="form-control" placeholder="Mín. 8 chars (Aa1!)" autocomplete="new-password" style="padding-right: 2.5rem;">
+                                        <button type="button" id="btn-toggle-usr-pass" aria-label="Mostrar contraseña" style="position: absolute; right: 0.6rem; color: var(--text-muted); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="usr-pass-security-box" style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.85rem 1rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem; font-size: 0.8rem;">
+                                        <strong style="color: var(--text-primary);"><i class="fas fa-shield-alt" style="color: var(--brand-action);"></i> Factor de Seguridad de Contraseña</strong>
+                                        <span id="usr-pass-strength-label" style="font-weight: 700; color: var(--text-muted);">Sin ingresar</span>
+                                    </div>
+                                    <div style="width: 100%; height: 6px; border-radius: 999px; background: var(--border-color); overflow: hidden; margin-bottom: 0.65rem;">
+                                        <div id="usr-pass-strength-bar" style="width: 0%; height: 100%; background: var(--text-muted); transition: width 0.25s ease, background-color 0.25s ease;"></div>
+                                    </div>
+                                    <div id="usr-pass-checklist" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 0.35rem 0.75rem; font-size: 0.78rem; color: var(--text-secondary);">
+                                        <span id="rule-len"><i class="far fa-circle"></i> Mínimo 8 caracteres</span>
+                                        <span id="rule-upper"><i class="far fa-circle"></i> Letra mayúscula (A-Z)</span>
+                                        <span id="rule-lower"><i class="far fa-circle"></i> Letra minúscula (a-z)</span>
+                                        <span id="rule-num"><i class="far fa-circle"></i> Número (0-9)</span>
+                                        <span id="rule-spec"><i class="far fa-circle"></i> Carácter especial (!@#$...)</span>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="form-group" style="grid-column: span 2; margin-bottom: 0;"><label>Foto (URL o Archivo)</label><input type="file" id="usr-photo" class="form-control" style="padding: 0.5rem;" accept="image/*"></div>
                         </div>
 
@@ -250,11 +302,13 @@ window.Modules.settings = {
                     <button class="btn" id="btn-force-backup" style="background: var(--brand-success); color: white;"><i class="fas fa-cloud-download-alt"></i> Forzar Backup Ahora</button>
                 </div>
 
-                <div style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px dashed var(--border-color);">
+                ${isMasterAdminSession ? `
+                <div id="reset-system-zone" style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px dashed var(--border-color);">
                     <h4 style="color: var(--brand-danger); margin-bottom: 0.5rem;"><i class="fas fa-exclamation-triangle"></i> Zona de Reinicio (Entorno de Pruebas)</h4>
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">Elimina todos los pasajeros, reservas, aeronaves, empleados, inventario, caja, facturas y ventas de prueba, dejando el sistema completamente en blanco (solo se conserva el usuario <strong>admin01</strong>).</p>
                     <button class="btn btn-danger" id="btn-reset-system-blank"><i class="fas fa-trash-restore"></i> Restablecer Sistema en Blanco</button>
                 </div>
+                ` : ''}
             </div>
 
 
@@ -341,11 +395,30 @@ window.Modules.settings = {
             });
         }
         
+        // Usuario Admin Master (admin01) siempre oculto y protegido por seguridad en Usuarios Activos
+        function isHiddenMasterAdmin(u) {
+            if (!u) return false;
+            const uname = String(u.username || '').trim().toLowerCase();
+            const uid = String(u.id || '').trim().toLowerCase();
+            const name = String(u.name || '').trim().toLowerCase();
+            return uname === 'admin01' || uid === 'usr_admin' || name === 'admin master';
+        }
+
         window.renderUsersTable = function() {
             const tbody = document.getElementById('table-usr');
             if (!tbody) return;
             tbody.innerHTML = '';
-            const users = window.AppData.users || [];
+            const users = (window.AppData.users || []).filter(u => !isHiddenMasterAdmin(u));
+            if (users.length === 0) {
+                const emptyTr = document.createElement('tr');
+                emptyTr.innerHTML = `
+                    <td colspan="4" style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-style: italic;">
+                        No hay usuarios adicionales registrados.
+                    </td>
+                `;
+                tbody.appendChild(emptyTr);
+                return;
+            }
             users.forEach(u => {
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid var(--border-color)';
@@ -421,10 +494,16 @@ window.Modules.settings = {
                             if (id) {
                                 const idx = window.AppData.users.findIndex(u => u.id === id);
                                 if (idx !== -1) {
+                                    if (isHiddenMasterAdmin(window.AppData.users[idx])) {
+                                        if (window.showAlert) window.showAlert('Esta cuenta está protegida por seguridad y no puede eliminarse.', { type: 'danger', title: 'Acción Protegida' });
+                                        return;
+                                    }
                                     window.AppData.users.splice(idx, 1);
                                     if (window.saveAppData) window.saveAppData();
                                 }
                             }
+                            if (window.renderUsersTable) window.renderUsersTable();
+                            return;
                         }
                         tr.remove();
                     }
@@ -434,12 +513,28 @@ window.Modules.settings = {
                     const tr = btnEdit.closest('tr');
                     const tbody = btnEdit.closest('tbody');
                     if (tbody && tbody.id === 'table-usr') {
+                        const editId = btnEdit.getAttribute('data-id');
+                        const targetUsr = (window.AppData.users || []).find(u => u.id === editId);
+                        if (isHiddenMasterAdmin(targetUsr)) {
+                            if (window.showAlert) window.showAlert('Esta cuenta está protegida por seguridad.', { type: 'danger', title: 'Acción Protegida' });
+                            return;
+                        }
                         const nameInput = document.getElementById('usr-name');
                         const userInput = document.getElementById('usr-username');
+                        const cedulaInput = document.getElementById('usr-cedula');
+                        const phoneInput = document.getElementById('usr-phone');
+                        const emailInput = document.getElementById('usr-email');
                         const roleSelect = document.getElementById('usr-role');
+                        const editPassBox = document.getElementById('usr-edit-password-fields');
+                        const defaultPassInfo = document.getElementById('usr-default-pass-info');
                         
-                        if (nameInput) nameInput.value = tr.cells[0].innerText.trim();
-                        if (userInput) userInput.value = tr.cells[1].innerText.trim();
+                        if (nameInput) nameInput.value = targetUsr ? (targetUsr.name || '') : tr.cells[0].innerText.trim();
+                        if (userInput) userInput.value = targetUsr ? (targetUsr.username || '') : tr.cells[1].innerText.trim();
+                        if (cedulaInput) cedulaInput.value = targetUsr ? (targetUsr.cedula || '') : '';
+                        if (phoneInput) phoneInput.value = targetUsr ? (targetUsr.phone || '') : '';
+                        if (emailInput) emailInput.value = targetUsr ? (targetUsr.email || '') : '';
+                        if (editPassBox) editPassBox.style.display = 'block';
+                        if (defaultPassInfo) defaultPassInfo.style.display = 'none';
                         if (roleSelect) {
                             const roleTxt = tr.cells[2].innerText.trim();
                             for (let i = 0; i < roleSelect.options.length; i++) {
@@ -951,44 +1046,235 @@ window.Modules.settings = {
         }
         
         // =====================================
-        // 4. Create User
+        // 4. Create User (con Factor de Seguridad de Contraseña)
         // =====================================
+        const usrPassInput = document.getElementById('usr-pass');
+        const btnToggleUsrPass = document.getElementById('btn-toggle-usr-pass');
+        const btnGenUsrPass = document.getElementById('btn-generate-secure-pass');
+
+        function updatePasswordSecurityUI(pwdValue) {
+            if (!window.PasswordPolicy) return;
+            const res = window.PasswordPolicy.evaluate(pwdValue);
+            const bar = document.getElementById('usr-pass-strength-bar');
+            const lbl = document.getElementById('usr-pass-strength-label');
+            if (bar) {
+                bar.style.width = `${(res.score / res.maxScore) * 100}%`;
+                bar.style.background = res.color;
+            }
+            if (lbl) {
+                lbl.textContent = pwdValue ? `${res.level} (${res.score}/${res.maxScore})` : 'Sin ingresar';
+                lbl.style.color = res.color;
+            }
+
+            const ruleNodes = [
+                { id: 'rule-len', ok: res.rules.minLength, text: 'Mínimo 8 caracteres' },
+                { id: 'rule-upper', ok: res.rules.hasUpper, text: 'Letra mayúscula (A-Z)' },
+                { id: 'rule-lower', ok: res.rules.hasLower, text: 'Letra minúscula (a-z)' },
+                { id: 'rule-num', ok: res.rules.hasNumber, text: 'Número (0-9)' },
+                { id: 'rule-spec', ok: res.rules.hasSpecial, text: 'Carácter especial (!@#$...)' }
+            ];
+            ruleNodes.forEach(r => {
+                const el = document.getElementById(r.id);
+                if (!el) return;
+                el.style.color = r.ok ? 'var(--brand-success)' : (pwdValue ? 'var(--brand-danger)' : 'var(--text-secondary)');
+                el.style.fontWeight = r.ok ? '600' : '400';
+                el.innerHTML = `<i class="${r.ok ? 'fas fa-check-circle' : (pwdValue ? 'fas fa-times-circle' : 'far fa-circle')}"></i> ${r.text}`;
+            });
+        }
+
+        if (usrPassInput) {
+            usrPassInput.addEventListener('input', (e) => updatePasswordSecurityUI(e.target.value));
+        }
+        if (btnToggleUsrPass && usrPassInput) {
+            btnToggleUsrPass.addEventListener('click', () => {
+                const isText = usrPassInput.type === 'text';
+                usrPassInput.type = isText ? 'password' : 'text';
+                btnToggleUsrPass.innerHTML = `<i class="fas ${isText ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+            });
+        }
+        if (btnGenUsrPass && usrPassInput && window.PasswordPolicy) {
+            btnGenUsrPass.addEventListener('click', () => {
+                usrPassInput.value = window.PasswordPolicy.generateSecurePassword(12);
+                usrPassInput.type = 'text';
+                if (btnToggleUsrPass) btnToggleUsrPass.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                updatePasswordSecurityUI(usrPassInput.value);
+            });
+        }
+
+        function showNewUserCredentialsModal(username, password, fullName) {
+            const existing = document.getElementById('modal-new-user-credentials');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'modal-new-user-credentials';
+            overlay.className = 'modal-overlay';
+            overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(12, 35, 49, 0.72); backdrop-filter: blur(4px); z-index: 10040; display: flex; justify-content: center; align-items: center; padding: 1rem;';
+
+            const safeUser = escapeHTML(username);
+            const safePass = escapeHTML(password);
+            const safeName = escapeHTML(fullName || username);
+
+            overlay.innerHTML = `
+                <div style="background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 16px; width: 100%; max-width: 460px; box-shadow: 0 24px 60px rgba(0,0,0,0.35); padding: 1.75rem; position: relative;">
+                    <div style="display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1rem;">
+                        <div style="width: 46px; height: 46px; border-radius: 12px; background: rgba(16, 185, 129, 0.14); color: var(--brand-success); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0;">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem;">Usuario Creado con Éxito</h3>
+                            <div style="font-size: 0.84rem; color: var(--text-secondary);">${safeName}</div>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 0.88rem; color: var(--text-secondary); margin: 0 0 1rem 0; line-height: 1.45;">
+                        Se han generado las credenciales de acceso inicial. Al iniciar sesión por primera vez, el sistema solicitará el cambio obligatorio de contraseña.
+                    </p>
+
+                    <div style="background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.65rem;">
+                            <span style="font-size: 0.84rem; color: var(--text-secondary); font-weight: 600;"><i class="fas fa-user" style="color: var(--brand-action); margin-right: 0.35rem;"></i> Usuario</span>
+                            <code id="new-user-modal-username" style="font-family: 'JetBrains Mono', monospace; font-size: 0.98rem; font-weight: 700; color: var(--text-primary); background: var(--bg-surface); padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-color);">${safeUser}</code>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 0.84rem; color: var(--text-secondary); font-weight: 600;"><i class="fas fa-key" style="color: var(--brand-action); margin-right: 0.35rem;"></i> Contraseña</span>
+                            <code id="new-user-modal-password" style="font-family: 'JetBrains Mono', monospace; font-size: 0.98rem; font-weight: 700; color: var(--brand-action); background: var(--bg-surface); padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-color);">${safePass}</code>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-outline" id="btn-copy-new-user-creds"><i class="fas fa-copy"></i> Copiar Datos</button>
+                        <button type="button" class="btn btn-primary" id="btn-close-new-user-creds"><i class="fas fa-check"></i> Aceptar</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            const close = () => { if (overlay.parentNode) overlay.remove(); };
+            const btnClose = overlay.querySelector('#btn-close-new-user-creds');
+            const btnCopy = overlay.querySelector('#btn-copy-new-user-creds');
+            if (btnClose) btnClose.addEventListener('click', close);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+            if (btnCopy) {
+                btnCopy.addEventListener('click', async () => {
+                    const txt = `Usuario: ${username}\nContraseña: ${password}`;
+                    try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(txt);
+                        }
+                        btnCopy.innerHTML = '<i class="fas fa-check"></i> ¡Copiado!';
+                    } catch (err) {
+                        btnCopy.innerHTML = '<i class="fas fa-check"></i> Listo';
+                    }
+                });
+            }
+        }
+
         document.getElementById('btn-create-usr').addEventListener('click', (e) => {
-            const name = document.getElementById('usr-name').value;
-            const username = document.getElementById('usr-username').value;
+            const name = document.getElementById('usr-name').value.trim();
+            const username = document.getElementById('usr-username').value.trim();
+            const cedulaInput = document.getElementById('usr-cedula');
+            const phoneInput = document.getElementById('usr-phone');
+            const emailInput = document.getElementById('usr-email');
+            const cedulaRaw = cedulaInput ? cedulaInput.value.trim() : '';
+            const cedula = cedulaRaw.replace(/[\s.,-]/g, '');
+            const phone = phoneInput ? phoneInput.value.trim() : '';
+            const email = emailInput ? emailInput.value.trim() : '';
             const role = document.getElementById('usr-role').value;
-            const password = document.getElementById('usr-pass').value;
+            const password = usrPassInput ? usrPassInput.value : '';
             const photoInput = document.getElementById('usr-photo');
             const photoData = photoInput ? photoInput.dataset.base64 : null;
 
-            if (!name || !username) return alert('El nombre y usuario son obligatorios.');
-
             const btn = e.currentTarget;
             window.AppData.users = window.AppData.users || [];
+            const isEditing = !!btn.dataset.editId;
 
-            if (btn.dataset.editId) {
+            if (!name || !username) {
+                const msg = 'El nombre y usuario son obligatorios.';
+                return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Campos Obligatorios' }) : alert(msg);
+            }
+
+            if (!isEditing && !cedula) {
+                const msg = 'El número de cédula es obligatorio para generar la contraseña por defecto.';
+                return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Cédula Obligatoria' }) : alert(msg);
+            }
+
+            // Al editar, si se ingresa una nueva contraseña, debe cumplir el factor de seguridad
+            if (isEditing && password.length > 0) {
+                if (window.PasswordPolicy) {
+                    const check = window.PasswordPolicy.validate(password);
+                    if (!check.valid) {
+                        updatePasswordSecurityUI(password);
+                        return window.showAlert
+                            ? window.showAlert(check.error, { type: 'danger', title: 'Contraseña Insegura' })
+                            : alert(check.error);
+                    }
+                } else {
+                    const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
+                    if (!strongRegex.test(password)) {
+                        return alert('La contraseña debe tener mínimo 8 caracteres y combinar letras mayúsculas, minúsculas, números y caracteres especiales.');
+                    }
+                }
+            }
+
+            const editPassBox = document.getElementById('usr-edit-password-fields');
+            const defaultPassInfo = document.getElementById('usr-default-pass-info');
+
+            if (isEditing) {
                 const id = btn.dataset.editId;
                 const user = window.AppData.users.find(u => u.id === id);
+                if (user && isHiddenMasterAdmin(user)) {
+                    delete btn.dataset.editId;
+                    btn.innerHTML = '<i class="fas fa-save"></i> Crear Usuario';
+                    if (editPassBox) editPassBox.style.display = 'none';
+                    if (defaultPassInfo) defaultPassInfo.style.display = 'flex';
+                    const msg = 'Esta cuenta está protegida por seguridad y no puede modificarse desde esta lista.';
+                    return window.showAlert ? window.showAlert(msg, { type: 'danger', title: 'Acción Protegida' }) : alert(msg);
+                }
+                const reservedOrDup = username.toLowerCase() === 'admin01'
+                    || name.toLowerCase() === 'admin master'
+                    || window.AppData.users.some(u => u.id !== id && String(u.username || '').trim().toLowerCase() === username.toLowerCase());
+                if (reservedOrDup) {
+                    const msg = `El nombre o usuario ingresado no está disponible o ya existe en el sistema.`;
+                    return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Usuario No Disponible' }) : alert(msg);
+                }
                 if (user) {
                     user.name = name;
                     user.username = username;
+                    if (cedula) user.cedula = cedula;
+                    user.phone = phone;
+                    user.email = email;
                     user.role = role;
                     if (password) user.password = password;
                     if (photoData) user.photo = photoData;
-                    alert('Usuario actualizado con éxito.');
+                    if (window.showAlert) window.showAlert('Usuario actualizado con éxito.', { type: 'success', title: 'Usuario Actualizado' });
+                    else alert('Usuario actualizado con éxito.');
                 }
                 delete btn.dataset.editId;
                 btn.innerHTML = '<i class="fas fa-save"></i> Crear Usuario';
             } else {
+                const dup = username.toLowerCase() === 'admin01'
+                    || name.toLowerCase() === 'admin master'
+                    || window.AppData.users.some(u => String(u.username || '').trim().toLowerCase() === username.toLowerCase());
+                if (dup) {
+                    const msg = `El nombre o usuario ingresado no está disponible o ya existe en el sistema.`;
+                    return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Usuario Duplicado' }) : alert(msg);
+                }
+                const defaultPassword = `${cedula}Fp*`;
                 window.AppData.users.push({
                     id: 'usr_' + Date.now(),
                     name: name,
                     username: username,
+                    cedula: cedula,
+                    phone: phone,
+                    email: email,
                     role: role,
-                    password: password || '1234',
-                    photo: photoData || ''
+                    password: defaultPassword,
+                    photo: photoData || '',
+                    mustChangePassword: true,
+                    createdAt: new Date().toISOString()
                 });
-                alert('Usuario creado con éxito.');
+                showNewUserCredentialsModal(username, defaultPassword, name);
             }
 
             if (window.saveAppData) window.saveAppData();
@@ -996,8 +1282,18 @@ window.Modules.settings = {
 
             document.getElementById('usr-name').value = '';
             document.getElementById('usr-username').value = '';
+            if (cedulaInput) cedulaInput.value = '';
+            if (phoneInput) phoneInput.value = '';
+            if (emailInput) emailInput.value = '';
             document.getElementById('usr-role').selectedIndex = 0;
-            document.getElementById('usr-pass').value = '';
+            if (usrPassInput) {
+                usrPassInput.value = '';
+                usrPassInput.type = 'password';
+            }
+            if (btnToggleUsrPass) btnToggleUsrPass.innerHTML = '<i class="fas fa-eye"></i>';
+            if (editPassBox) editPassBox.style.display = 'none';
+            if (defaultPassInfo) defaultPassInfo.style.display = 'flex';
+            updatePasswordSecurityUI('');
             if (photoInput) {
                 photoInput.value = '';
                 photoInput.dataset.base64 = '';
@@ -1020,20 +1316,58 @@ window.Modules.settings = {
         const btnResetSystem = document.getElementById('btn-reset-system-blank');
         if (btnResetSystem) {
             btnResetSystem.addEventListener('click', async () => {
+                // Seguridad: solo admin01 (Admin Master) está autorizado a ejecutar el reinicio
+                if (!window.Modules.settings.isCurrentSessionMasterAdmin()) {
+                    const deniedMsg = 'Acceso denegado: únicamente el usuario Admin Master (admin01) puede restablecer el sistema.';
+                    if (window.showAlert) {
+                        await window.showAlert(deniedMsg, { title: 'Acceso Restringido', type: 'danger' });
+                    } else {
+                        alert(deniedMsg);
+                    }
+                    return;
+                }
+
                 const confirmed = window.showConfirm
                     ? await window.showConfirm('¿Estás seguro de eliminar TODA la información del sistema (pasajeros, reservas, RRHH, flota, inventario, facturas y caja)? Esta acción no se puede deshacer.', {
                         title: 'Restablecer Sistema en Blanco',
                         type: 'danger',
-                        confirmText: 'Sí, Eliminar Todo',
+                        confirmText: 'Continuar',
                         cancelText: 'Cancelar'
                     })
                     : confirm('¿Estás seguro de eliminar TODA la información del sistema?');
                 if (!confirmed) return;
 
+                // Solicitar contraseña actual de Admin Master (admin01) antes de ejecutar el borrado
+                const enteredPass = window.showPrompt
+                    ? await window.showPrompt('Por seguridad, ingresa la contraseña de Admin Master (admin01) para confirmar el restablecimiento del sistema en blanco:', {
+                        title: 'Verificación de Contraseña',
+                        inputType: 'password',
+                        placeholder: 'Ingresa tu contraseña...',
+                        confirmText: 'Restablecer Sistema',
+                        cancelText: 'Cancelar'
+                    })
+                    : prompt('Ingresa la contraseña de Admin Master (admin01) para confirmar:');
+
+                if (enteredPass === null) return;
+
+                const users = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
+                const masterRecord = users.find(u => u && (String(u.username || '').trim().toLowerCase() === 'admin01' || u.id === 'usr_admin'));
+                const expectedPass = (masterRecord && masterRecord.password !== undefined) ? String(masterRecord.password) : '01Fraterno*';
+
+                if (String(enteredPass) !== expectedPass) {
+                    const wrongMsg = 'Contraseña incorrecta. No se realizó el restablecimiento del sistema.';
+                    if (window.showAlert) {
+                        await window.showAlert(wrongMsg, { title: 'Contraseña Incorrecta', type: 'danger' });
+                    } else {
+                        alert(wrongMsg);
+                    }
+                    return;
+                }
+
                 if (window.resetSystemToBlank) {
                     await window.resetSystemToBlank();
                     if (window.showAlert) {
-                        await window.showAlert('El sistema ha sido restablecido completamente en blanco. Se conservaron únicamente las credenciales de Administrador (admin01 / admin).', {
+                        await window.showAlert('El sistema ha sido restablecido completamente en blanco. Se conservaron únicamente las credenciales del Administrador Master.', {
                             title: 'Sistema en Blanco',
                             type: 'success'
                         });

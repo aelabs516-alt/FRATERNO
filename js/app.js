@@ -35,6 +35,13 @@ window.saveToLocalStorageSafe = function(dataObj) {
                     return cp;
                 });
             }
+            if (Array.isArray(compact.supportTickets)) {
+                compact.supportTickets = compact.supportTickets.map(t => {
+                    const ct = { ...t };
+                    if (ct.imageDataUrl && ct.imageDataUrl.length > 60000) ct.imageDataUrl = '';
+                    return ct;
+                });
+            }
             if (compact.legalDocs) {
                 compact.legalDocs = {};
             }
@@ -71,6 +78,23 @@ document.addEventListener('input', (e) => {
 });
 
 const CLEAN_RESET_VERSION = 'clean_slate_2026_11_19_v1';
+const DEFAULT_MASTER_ADMIN_PASS = '01Fraterno*';
+
+window.migrateMasterAdminPassword = function(state) {
+    if (!state || !Array.isArray(state.users)) return false;
+    let changed = false;
+    state.users.forEach(u => {
+        if (!u) return;
+        const uname = String(u.username || '').trim().toLowerCase();
+        const uid = String(u.id || '').trim().toLowerCase();
+        if ((uname === 'admin01' || uid === 'usr_admin') && u.password === 'admin') {
+            u.password = DEFAULT_MASTER_ADMIN_PASS;
+            u.mustChangePassword = false;
+            changed = true;
+        }
+    });
+    return changed;
+};
 
 window.createBlankAppData = function() {
     return {
@@ -95,6 +119,7 @@ window.createBlankAppData = function() {
         ponchera: [],
         maestroValoresVersion: 1,
         maestroValoresHistory: [],
+        supportTickets: [],
         restriccionSaltos: 'Sin restricción',
         zonaCerradaMotivo: '',
         emailAlertsLog: [],
@@ -102,7 +127,7 @@ window.createBlankAppData = function() {
         enabledModules: {},
         backupConfig: {},
         noOpRules: { daysOfWeek: ['1', '2'], specificDates: [], exceptions: [] },
-        users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }]
+        users: [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: DEFAULT_MASTER_ADMIN_PASS, mustChangePassword: false }]
     };
 };
 
@@ -147,7 +172,8 @@ function loadAppData() {
             data.noOpRules = data.noOpRules || { daysOfWeek: ['1', '2'], specificDates: [], exceptions: [] };
             data.users = (Array.isArray(data.users) && data.users.length > 0)
                 ? data.users
-                : [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: 'admin' }];
+                : [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: DEFAULT_MASTER_ADMIN_PASS, mustChangePassword: false }];
+            const pwdMigrated = window.migrateMasterAdminPassword(data);
             data.passengers = data.passengers || [];
             data.employees = data.employees || [];
             data.aeronaves = data.aeronaves || [];
@@ -157,9 +183,13 @@ function loadAppData() {
             data.ponchera = data.ponchera || [];
             data.maestroValoresVersion = data.maestroValoresVersion || 1;
             data.maestroValoresHistory = data.maestroValoresHistory || [];
+            data.supportTickets = data.supportTickets || [];
             data.restriccionSaltos = data.restriccionSaltos || 'Sin restricción';
             data.emailAlertsLog = data.emailAlertsLog || [];
 
+            if (pwdMigrated) {
+                try { localStorage.setItem('fraterno_app_data', JSON.stringify(data)); } catch (e) {}
+            }
             return data;
         } catch(e) {
             console.error("Critical: Failed to parse fraterno_app_data, resetting to blank state.", e);
@@ -592,6 +622,23 @@ function router() {
             if (typeof window.applyResponsiveLayout === 'function') {
                 window.applyResponsiveLayout(appView);
             }
+            let blockedByFirstLogin = false;
+            if (window.PasswordManager) {
+                window.PasswordManager.init();
+                if (!isFullscreenModule && hash !== '/fids' && currentUserStr) {
+                    blockedByFirstLogin = window.PasswordManager.checkMandatoryPasswordChange();
+                }
+            }
+            if (window.SupportSystem) {
+                window.SupportSystem.init();
+                window.SupportSystem.updateSupportBadge();
+                if (!blockedByFirstLogin && !isFullscreenModule && hash !== '/fids' && currentUserStr) {
+                    if (sessionStorage.getItem('fraterno_check_support_notifs') === '1') {
+                        sessionStorage.removeItem('fraterno_check_support_notifs');
+                        window.SupportSystem.checkAndNotifyResolvedTickets();
+                    }
+                }
+            }
         } catch (err) {
             console.error("Module Render Error:", err);
             const safeMsg = window.escapeHTML ? window.escapeHTML(err.message || 'Error interno') : 'Error interno';
@@ -629,9 +676,12 @@ window.addEventListener('load', async () => {
         if (res.ok) {
             const data = await res.json();
             if (data && data._resetVersion === CLEAN_RESET_VERSION) {
+                const pwdMigrated = window.migrateMasterAdminPassword(data);
                 window.AppData = data;
+                window.AppData.supportTickets = window.AppData.supportTickets || [];
                 if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
                 window.saveToLocalStorageSafe(window.AppData);
+                if (pwdMigrated) window.saveAppData();
             } else {
                 // El servidor aún tenía datos de prueba o estado vacío previo: sincronizar el estado limpio
                 const blank = window.createBlankAppData();
@@ -704,4 +754,24 @@ window.addEventListener('load', async () => {
     });
 
     router();
+
+    let blockedByFirstLoginOnLoad = false;
+    if (window.PasswordManager) {
+        window.PasswordManager.init();
+        const curHashPwd = (window.location.hash.slice(1) || '/').split('?')[0];
+        const isPublicPwd = ['/login', '/b2c', '/autogestion', '/fids'].includes(curHashPwd);
+        if (!isPublicPwd && sessionStorage.getItem('fraterno_user')) {
+            blockedByFirstLoginOnLoad = window.PasswordManager.checkMandatoryPasswordChange();
+        }
+    }
+
+    if (window.SupportSystem) {
+        window.SupportSystem.init();
+        window.SupportSystem.updateSupportBadge();
+        const curHash = (window.location.hash.slice(1) || '/').split('?')[0];
+        const isPublic = ['/login', '/b2c', '/autogestion', '/fids'].includes(curHash);
+        if (!blockedByFirstLoginOnLoad && !isPublic && sessionStorage.getItem('fraterno_user')) {
+            window.SupportSystem.checkAndNotifyResolvedTickets();
+        }
+    }
 });
