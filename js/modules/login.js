@@ -86,10 +86,15 @@ window.Modules.login = {
             const passTrimmed = String(passIn || '').trim();
             if (!normUser) return null;
 
+            const deletedSet = new Set(
+                (window.AppData && Array.isArray(window.AppData.deletedUserIds)) ? window.AppData.deletedUserIds : []
+            );
             const users = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
             let matchedUser = users.find(u => {
                 if (!u) return false;
+                if (u.id && deletedSet.has(u.id)) return false;
                 const uName = String(u.username || '').trim().toLowerCase();
+                if (!u.id && uName && deletedSet.has('uname:' + uName)) return false;
                 if (!uName || uName !== normUser) return false;
                 if (u.password === undefined) {
                     return passIn === '1234' || passTrimmed === '1234';
@@ -124,39 +129,49 @@ window.Modules.login = {
 
         form.addEventListener('submit', async (e) => {
             if (e && typeof e.preventDefault === 'function') e.preventDefault();
-            const userIn = document.getElementById('login-user').value.trim();
-            const passIn = document.getElementById('login-pass').value;
+            if (form.dataset.submitting === '1') return;
+            form.dataset.submitting = '1';
 
-            // 1. Verificación inmediata en memoria
-            let matchedUser = findMatchingUser(userIn, passIn);
-            if (matchedUser) {
-                completeLogin(matchedUser);
-                return;
-            }
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
 
-            // 2. Si no coincide localmente (ej. usuario recién creado desde otro navegador, pestaña abierta antes o modo incógnito), sincronizar estado fresco desde PostgreSQL y reintentar
-            if (typeof window.syncStateFromServer === 'function') {
-                await window.syncStateFromServer();
-                matchedUser = findMatchingUser(userIn, passIn);
+            try {
+                const userIn = document.getElementById('login-user').value.trim();
+                const passIn = document.getElementById('login-pass').value;
+
+                // 1. Seguridad multi-dispositivo: SIEMPRE sincronizar estado fresco desde el servidor ANTES de autenticar
+                //    para impedir que un navegador sin refrescar permita ingresar a un usuario eliminado o con credenciales revocadas.
+                if (typeof window.syncStateFromServer === 'function') {
+                    await window.syncStateFromServer();
+                }
+
+                // 2. Validar credenciales contra la lista actualizada de usuarios activos
+                const matchedUser = findMatchingUser(userIn, passIn);
                 if (matchedUser) {
                     completeLogin(matchedUser);
                     return;
                 }
-            }
 
-            // 3. Mensaje claro orientando si es primer inicio de sesión
-            const normUser = String(userIn || '').trim().toLowerCase();
-            const existingUser = ((window.AppData && window.AppData.users) || []).find(
-                u => u && String(u.username || '').trim().toLowerCase() === normUser
-            );
-            const errMsg = (existingUser && existingUser.mustChangePassword === true)
-                ? 'Contraseña incorrecta para primer inicio de sesión. Ingresa tu número de cédula seguido exactamente de Fp* (con F mayúscula, p minúscula y asterisco *).'
-                : 'Usuario o contraseña incorrectos. Verifica tus credenciales e intenta nuevamente.';
+                // 3. Mensaje claro orientando si es primer inicio de sesión
+                const normUser = String(userIn || '').trim().toLowerCase();
+                const deletedSet = new Set(
+                    (window.AppData && Array.isArray(window.AppData.deletedUserIds)) ? window.AppData.deletedUserIds : []
+                );
+                const existingUser = ((window.AppData && window.AppData.users) || []).find(
+                    u => u && !(u.id && deletedSet.has(u.id)) && String(u.username || '').trim().toLowerCase() === normUser
+                );
+                const errMsg = (existingUser && existingUser.mustChangePassword === true)
+                    ? 'Contraseña incorrecta para primer inicio de sesión. Ingresa tu número de cédula seguido exactamente de Fp* (con F mayúscula, p minúscula y asterisco *).'
+                    : 'Usuario o contraseña incorrectos. Verifica tus credenciales e intenta nuevamente.';
 
-            if (window.showAlert) {
-                window.showAlert(errMsg, { type: 'danger', title: 'Acceso Denegado' });
-            } else {
-                alert(errMsg);
+                if (window.showAlert) {
+                    window.showAlert(errMsg, { type: 'danger', title: 'Acceso Denegado' });
+                } else {
+                    alert(errMsg);
+                }
+            } finally {
+                form.dataset.submitting = '0';
+                if (submitBtn) submitBtn.disabled = false;
             }
         });
     }

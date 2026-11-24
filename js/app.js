@@ -57,11 +57,26 @@ window.saveToLocalStorageSafe = function(dataObj) {
 window.saveAppData = function() {
     window.saveToLocalStorageSafe(window.AppData);
 
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+        const rawUser = sessionStorage.getItem('fraterno_user');
+        if (rawUser) {
+            const parsedU = JSON.parse(rawUser);
+            if (parsedU && parsedU.id) headers['X-Fraterno-User-Id'] = String(parsedU.id);
+            if (parsedU && parsedU.username) headers['X-Fraterno-Username'] = String(parsedU.username);
+        }
+    } catch (e) {}
+
     // Sync full state (including selfies, signatures & payment supports up to 50MB) with backend PostgreSQL API
     return fetch('/api/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(window.AppData)
+    }).then(res => {
+        if (res && res.status === 401 && typeof window.revokeDeletedUserSession === 'function') {
+            window.revokeDeletedUserSession();
+        }
+        return res;
     }).catch(err => console.error('Failed to sync state to server:', err));
 };
 
@@ -550,6 +565,128 @@ window.getDefaultLandingRouteForUser = function(user, fallbackRole = null) {
     return (rLow === 'ventas' || rLow.includes('venta')) ? '/registro-salto' : '/';
 };
 
+let _hasHydratedFromServer = false;
+let _activeSessionCheckPromise = null;
+
+window.isSessionUserDeletedLocally = function(sessionUser) {
+    if (!sessionUser) return false;
+    const uid = String(sessionUser.id || '').trim();
+    const uname = String(sessionUser.username || '').trim().toLowerCase();
+    if (!uid && !uname) return false;
+    if (uid === 'usr_admin' || uname === 'admin01') return false;
+
+    const deletedSet = new Set(
+        (window.AppData && Array.isArray(window.AppData.deletedUserIds)) ? window.AppData.deletedUserIds : []
+    );
+    if (uid && deletedSet.has(uid)) return true;
+    if (!uid && uname && deletedSet.has('uname:' + uname)) return true;
+
+    if (_hasHydratedFromServer) {
+        const users = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
+        const exists = users.some(u => {
+            if (!u) return false;
+            if (u.id && deletedSet.has(u.id)) return false;
+            if (uid) return u.id === uid;
+            return String(u.username || '').trim().toLowerCase() === uname;
+        });
+        if (!exists) return true;
+    }
+    return false;
+};
+
+window.revokeDeletedUserSession = function() {
+    const hadSession = Boolean(sessionStorage.getItem('fraterno_user'));
+    sessionStorage.removeItem('fraterno_user');
+    sessionStorage.removeItem('fraterno_role');
+    sessionStorage.removeItem('fraterno_check_support_notifs');
+
+    const pwdModal = document.getElementById('modal-change-password');
+    if (pwdModal) pwdModal.remove();
+
+    window.location.hash = '#/login';
+    router();
+
+    if (hadSession) {
+        const msg = 'Tu cuenta de usuario ha sido eliminada o desactivada por el administrador. Sesión cerrada por seguridad.';
+        if (window.showAlert) {
+            window.showAlert(msg, { type: 'danger', title: 'Sesión Revocada' });
+        } else {
+            alert(msg);
+        }
+    }
+};
+
+window.verifyActiveSessionWithServer = function() {
+    if (_activeSessionCheckPromise) return _activeSessionCheckPromise;
+    const rawUser = sessionStorage.getItem('fraterno_user');
+    if (!rawUser) return Promise.resolve(true);
+
+    let sessionUser = null;
+    try {
+        sessionUser = JSON.parse(rawUser);
+    } catch (e) {
+        return Promise.resolve(true);
+    }
+    if (!sessionUser) return Promise.resolve(true);
+
+    const uid = String(sessionUser.id || '').trim();
+    const uname = String(sessionUser.username || '').trim().toLowerCase();
+    if (!uid && !uname) return Promise.resolve(true);
+    if (uid === 'usr_admin' || uname === 'admin01') return Promise.resolve(true);
+
+    _activeSessionCheckPromise = (async () => {
+        try {
+            const qs = `id=${encodeURIComponent(uid)}&username=${encodeURIComponent(uname)}`;
+            const res = await fetch(`/api/auth/session-check?${qs}`, {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
+            if (!sessionStorage.getItem('fraterno_user')) return false;
+            if (res && res.ok) {
+                const data = await res.json();
+                if (data && data.active === false) {
+                    const localUsers = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
+                    const existsInLocal = localUsers.some(u =>
+                        u && (uid ? u.id === uid : String(u.username || '').trim().toLowerCase() === uname)
+                    );
+                    const shouldRevoke = data.reason === 'deleted' || _hasHydratedFromServer || !existsInLocal;
+                    if (shouldRevoke) {
+                        if (window.AppData) {
+                            window.AppData.deletedUserIds = Array.isArray(window.AppData.deletedUserIds) ? window.AppData.deletedUserIds : [];
+                            if (data.reason === 'deleted' && uid && !window.AppData.deletedUserIds.includes(uid)) {
+                                window.AppData.deletedUserIds.push(uid);
+                            }
+                            if (Array.isArray(window.AppData.users)) {
+                                window.AppData.users = window.AppData.users.filter(u => {
+                                    if (!u) return false;
+                                    if (uid) return u.id !== uid;
+                                    return String(u.username || '').trim().toLowerCase() !== uname;
+                                });
+                            }
+                            window.saveToLocalStorageSafe(window.AppData);
+                        }
+                        window.revokeDeletedUserSession();
+                        return false;
+                    }
+                } else if (data && data.active === true && window.AppData && Array.isArray(window.AppData.users)) {
+                    const localMatch = window.AppData.users.find(u =>
+                        u && (uid ? u.id === uid : String(u.username || '').trim().toLowerCase() === uname)
+                    );
+                    if (localMatch && Array.isArray(data.allowedRoutes)) {
+                        localMatch.allowedRoutes = data.allowedRoutes;
+                    }
+                }
+            }
+        } catch (err) {
+            // Modo local o sin red temporal
+        } finally {
+            _activeSessionCheckPromise = null;
+        }
+        return true;
+    })();
+    return _activeSessionCheckPromise;
+};
+
 function router() {
     try {
         let hash = window.location.hash.slice(1) || '/';
@@ -564,6 +701,10 @@ function router() {
     if (currentUserStr) {
         try {
             parsedSessionUser = JSON.parse(currentUserStr);
+            if (window.isSessionUserDeletedLocally(parsedSessionUser)) {
+                window.revokeDeletedUserSession();
+                return;
+            }
             effectiveUser = window.resolveEffectiveUserRecord(parsedSessionUser);
             const profileDiv = document.getElementById('sidebar-user-profile');
             if (profileDiv && effectiveUser) {
@@ -575,6 +716,10 @@ function router() {
                 if (avatarImg) avatarImg.src = effectiveUser.photo || 'https://i.pravatar.cc/150?img=11';
             }
         } catch(e) {}
+    }
+
+    if (currentUserStr && hash !== '/login' && hash !== '/b2c' && hash !== '/autogestion') {
+        window.verifyActiveSessionWithServer();
     }
 
     const defaultLanding = window.getDefaultLandingRouteForUser(effectiveUser, currentRole);
@@ -801,6 +946,7 @@ window.syncStateFromServer = function() {
             });
             if (res.ok) {
                 const data = await res.json();
+                _hasHydratedFromServer = true;
                 if (data && data._resetVersion === CLEAN_RESET_VERSION) {
                     const pwdMigrated = window.migrateMasterAdminPassword(data);
                     window.AppData = data;
@@ -811,7 +957,6 @@ window.syncStateFromServer = function() {
                     if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
                     window.saveToLocalStorageSafe(window.AppData);
                     if (pwdMigrated) window.saveAppData();
-                    return true;
                 } else {
                     // El servidor aún tenía datos de prueba o estado vacío previo: sincronizar el estado limpio
                     const blank = window.createBlankAppData();
@@ -819,8 +964,17 @@ window.syncStateFromServer = function() {
                     window.saveToLocalStorageSafe(blank);
                     try { localStorage.setItem('factura_seq', '1'); } catch (e) {}
                     window.saveAppData();
-                    return true;
                 }
+                const activeSessionRaw = sessionStorage.getItem('fraterno_user');
+                if (activeSessionRaw) {
+                    try {
+                        const activeSessionObj = JSON.parse(activeSessionRaw);
+                        if (window.isSessionUserDeletedLocally(activeSessionObj)) {
+                            window.revokeDeletedUserSession();
+                        }
+                    } catch (errSess) {}
+                }
+                return true;
             }
         } catch (e) {
             console.log('Running in local mode or API offline');
@@ -898,6 +1052,23 @@ window.addEventListener('load', async () => {
         // Use passive listener and throttle by relying on simple variable assignment
         document.addEventListener(evt, updateActivityTime, { capture: true, passive: true });
     });
+
+    // Verificación continua de seguridad multi-equipo (revoca de inmediato si el usuario fue eliminado desde otro navegador sin refrescar)
+    window.addEventListener('focus', () => {
+        if (sessionStorage.getItem('fraterno_user')) {
+            window.verifyActiveSessionWithServer();
+        }
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && sessionStorage.getItem('fraterno_user')) {
+            window.verifyActiveSessionWithServer();
+        }
+    });
+    setInterval(() => {
+        if (sessionStorage.getItem('fraterno_user')) {
+            window.verifyActiveSessionWithServer();
+        }
+    }, 15000);
 
     router();
 

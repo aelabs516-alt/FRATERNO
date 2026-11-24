@@ -196,6 +196,65 @@ app.get('/api/state', async (req, res) => {
     }
 });
 
+// Verificación ligera en tiempo real de validez de sesión / usuario no eliminado (sin caché)
+app.get('/api/auth/session-check', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    try {
+        const uid = String((req.query && req.query.id) || '').trim();
+        const uname = String((req.query && req.query.username) || '').trim().toLowerCase();
+
+        if (uid === 'usr_admin' || uname === 'admin01') {
+            return res.json({ active: true, id: 'usr_admin', username: 'admin01' });
+        }
+        if (!uid && !uname) {
+            return res.json({ active: false, reason: 'missing_identity' });
+        }
+
+        let state = memoryFallbackState;
+        if (dbConnected) {
+            const result = await pool.query('SELECT data FROM app_state WHERE id = 1');
+            if (result.rows.length > 0 && result.rows[0].data) {
+                state = result.rows[0].data;
+            }
+        }
+
+        const deletedSet = new Set(Array.isArray(state && state.deletedUserIds) ? state.deletedUserIds : []);
+        if (uid && deletedSet.has(uid)) {
+            return res.json({ active: false, reason: 'deleted' });
+        }
+        if (!uid && uname && deletedSet.has('uname:' + uname)) {
+            return res.json({ active: false, reason: 'deleted' });
+        }
+
+        const users = Array.isArray(state && state.users) ? state.users : [];
+        const found = users.find(u => {
+            if (!u) return false;
+            if (u.id && deletedSet.has(u.id)) return false;
+            if (uid) return u.id === uid;
+            return String(u.username || '').trim().toLowerCase() === uname;
+        });
+
+        if (!found) {
+            return res.json({ active: false, reason: 'not_found' });
+        }
+
+        return res.json({
+            active: true,
+            id: found.id || null,
+            username: found.username,
+            role: found.role,
+            allowedRoutes: Array.isArray(found.allowedRoutes) ? found.allowedRoutes : null,
+            mustChangePassword: Boolean(found.mustChangePassword),
+            updatedAt: found.updatedAt || null
+        });
+    } catch (err) {
+        console.error('Error checking session:', err.message);
+        return res.status(500).json({ error: 'Error verificando estado de sesión.' });
+    }
+});
+
 function reconcileUsersState(existingState, incomingState) {
     if (!incomingState || typeof incomingState !== 'object') return;
     const prevDeleted = (existingState && Array.isArray(existingState.deletedUserIds)) ? existingState.deletedUserIds : [];
@@ -258,6 +317,22 @@ app.post('/api/state', async (req, res) => {
                 currentExisting = curRes.rows[0].data;
             }
         }
+
+        const reqUserId = String(req.get('x-fraterno-user-id') || '').trim();
+        const reqUsername = String(req.get('x-fraterno-username') || '').trim().toLowerCase();
+        const existingDeleted = new Set(
+            (currentExisting && Array.isArray(currentExisting.deletedUserIds)) ? currentExisting.deletedUserIds : []
+        );
+        if (
+            (reqUserId && reqUserId !== 'usr_admin' && existingDeleted.has(reqUserId)) ||
+            (!reqUserId && reqUsername && reqUsername !== 'admin01' && existingDeleted.has('uname:' + reqUsername))
+        ) {
+            return res.status(401).json({
+                error: 'Acceso revocado: tu cuenta de usuario ha sido eliminada por el administrador.',
+                sessionRevoked: true
+            });
+        }
+
         reconcileUsersState(currentExisting, newData);
 
         memoryFallbackState = JSON.parse(JSON.stringify(newData));

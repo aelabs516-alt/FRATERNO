@@ -501,7 +501,8 @@ window.Modules.settings = {
                             if (id) {
                                 const idx = window.AppData.users.findIndex(u => u.id === id);
                                 if (idx !== -1) {
-                                    if (isHiddenMasterAdmin(window.AppData.users[idx])) {
+                                    const targetDelUser = window.AppData.users[idx];
+                                    if (isHiddenMasterAdmin(targetDelUser)) {
                                         if (window.showAlert) window.showAlert('Esta cuenta está protegida por seguridad y no puede eliminarse.', { type: 'danger', title: 'Acción Protegida' });
                                         return;
                                     }
@@ -510,7 +511,7 @@ window.Modules.settings = {
                                         window.AppData.deletedUserIds.push(id);
                                     }
                                     window.AppData.users.splice(idx, 1);
-                                    if (window.saveAppData) window.saveAppData();
+                                    if (window.saveAppData) await window.saveAppData();
                                 }
                             }
                             if (window.renderUsersTable) window.renderUsersTable();

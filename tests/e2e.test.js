@@ -615,7 +615,7 @@ function buildSPAContext() {
                 };
             }
             const urlPath = url.startsWith('http') ? new URL(url).pathname : (url.startsWith('/') ? url : '/' + url);
-            return requestApp(opts.method || 'GET', urlPath, opts.body);
+            return requestApp(opts.method || 'GET', urlPath, opts.body, opts.headers || {});
         },
         jspdf: {
             jsPDF: class MockJsPDF {
@@ -2119,12 +2119,14 @@ test('3.14 [Módulo Soporte] Reporte de novedad por usuario (imagen opcional), g
     adminModal.remove();
 
     // 3. Si inicia sesión OTRO usuario (carlos_v), NO debe ver el popup de solución de laura_op
+    await win.saveAppData();
     win.sessionStorage.clear();
     win.location.hash = '#/login';
     win.router();
     doc.getElementById('login-user').value = 'carlos_v';
     doc.getElementById('login-pass').value = '1234';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
     assert.equal(doc.getElementById('modal-support-resolved-notif'), null, 'Otro usuario no debe recibir notificaciones de casos ajenos');
 
@@ -2135,6 +2137,7 @@ test('3.14 [Módulo Soporte] Reporte de novedad por usuario (imagen opcional), g
     doc.getElementById('login-user').value = 'laura_op';
     doc.getElementById('login-pass').value = '1234';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
 
     const notifModal = doc.getElementById('modal-support-resolved-notif');
@@ -2144,8 +2147,10 @@ test('3.14 [Módulo Soporte] Reporte de novedad por usuario (imagen opcional), g
 
     // Al pulsar Entendido, se marca como notificado y NO reaparece en el siguiente inicio de sesión
     doc.getElementById('btn-support-notif-accept').click();
+    await new Promise(r => setTimeout(r, 25));
     assert.equal(doc.getElementById('modal-support-resolved-notif'), null);
-    assert.equal(tk1.userNotified, true);
+    const tk1AfterAccept = win.AppData.supportTickets.find(t => t.code === 'SUP-0001');
+    assert.equal(tk1AfterAccept.userNotified, true);
 
     // Nuevo inicio de sesión de laura_op: no debe volver a mostrarse el caso ya notificado
     win.sessionStorage.clear();
@@ -2154,6 +2159,7 @@ test('3.14 [Módulo Soporte] Reporte de novedad por usuario (imagen opcional), g
     doc.getElementById('login-user').value = 'laura_op';
     doc.getElementById('login-pass').value = '1234';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
     assert.equal(doc.getElementById('modal-support-resolved-notif'), null, 'Un caso ya notificado no debe volver a abrir popup al iniciar sesión nuevamente');
 });
@@ -2242,7 +2248,7 @@ test('3.15 [Factor de Seguridad de Contraseñas] Exige mínimo 8 caracteres, may
     assert.equal(created.password, 'NuevaClave#99', 'Al editar con nueva contraseña segura debe actualizarse correctamente');
 });
 
-test('3.16 [Seguridad Usuarios Activos] Mantiene siempre oculto y protegido al usuario Admin Master (admin01) mientras sigue activo', () => {
+test('3.16 [Seguridad Usuarios Activos] Mantiene siempre oculto y protegido al usuario Admin Master (admin01) mientras sigue activo', async () => {
     const { win, doc } = buildSPAContext();
     const alertsShown = [];
     win.showAlert = (msg, opts) => alertsShown.push({ msg, opts });
@@ -2318,12 +2324,14 @@ test('3.16 [Seguridad Usuarios Activos] Mantiene siempre oculto y protegido al u
     assert.equal(win.AppData.users.find(u => u.id === 'usr_carlos').username, 'carlos_v', 'No debe permitir renombrar otro usuario a admin01');
 
     // 5. Confirmar que admin01 sigue completamente activo y puede iniciar sesión normalmente
+    await win.saveAppData();
     win.sessionStorage.clear();
     win.location.hash = '#/login';
     win.router();
     doc.getElementById('login-user').value = 'admin01';
     doc.getElementById('login-pass').value = '01Fraterno*';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     const logged = JSON.parse(win.sessionStorage.getItem('fraterno_user') || 'null');
     assert.ok(logged && logged.username === 'admin01', 'admin01 debe seguir completamente activo para iniciar sesión');
 });
@@ -2357,11 +2365,13 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     doc.getElementById('login-user').value = 'admin01';
     doc.getElementById('login-pass').value = 'admin';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     assert.equal(win.sessionStorage.getItem('fraterno_user'), null, 'La contraseña anterior "admin" no debe permitir iniciar sesión');
 
     doc.getElementById('login-user').value = 'admin01';
     doc.getElementById('login-pass').value = '01Fraterno*';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
     assert.equal(JSON.parse(win.sessionStorage.getItem('fraterno_user')).username, 'admin01');
     assert.equal(doc.getElementById('modal-change-password'), null, 'admin01 no debe recibir modal forzado de primer login');
@@ -2387,8 +2397,9 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     // Con cédula -> crea con contraseña <cedula>Fp* y muestra ventana emergente con Usuario y Contraseña
     doc.getElementById('usr-cedula').value = '1.035.862.410';
     doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 25));
 
-    const sofiaRec = win.AppData.users.find(u => u.username === 'sofia_v');
+    let sofiaRec = win.AppData.users.find(u => u.username === 'sofia_v');
     assert.ok(sofiaRec, 'El nuevo usuario debe crearse correctamente');
     assert.equal(sofiaRec.cedula, '1035862410');
     assert.equal(sofiaRec.password, '1035862410Fp*', 'La contraseña por defecto debe ser la cédula acompañada de Fp*');
@@ -2408,7 +2419,9 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     doc.getElementById('login-user').value = 'sofia_v';
     doc.getElementById('login-pass').value = '1035862410Fp*';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
+    sofiaRec = win.AppData.users.find(u => u.username === 'sofia_v');
 
     let modal = doc.getElementById('modal-change-password');
     assert.ok(modal, 'En el primer inicio de sesión debe desplegarse el modal de cambio obligatorio de contraseña');
@@ -2437,6 +2450,7 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     doc.getElementById('pwd-new').value = 'SofiaSegura#26';
     doc.getElementById('pwd-confirm').value = 'SofiaSegura#26';
     doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
 
     assert.equal(sofiaRec.mustChangePassword, false, 'Una vez cambiada la clave, mustChangePassword debe quedar en false');
     assert.equal(sofiaRec.password, 'SofiaSegura#26');
@@ -2449,12 +2463,15 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     doc.getElementById('login-user').value = 'sofia_v';
     doc.getElementById('login-pass').value = '1035862410Fp*';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     assert.equal(win.sessionStorage.getItem('fraterno_user'), null, 'La contraseña temporal por defecto anterior no debe volver a funcionar');
 
     doc.getElementById('login-user').value = 'sofia_v';
     doc.getElementById('login-pass').value = 'SofiaSegura#26';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
+    sofiaRec = win.AppData.users.find(u => u.username === 'sofia_v');
     assert.equal(JSON.parse(win.sessionStorage.getItem('fraterno_user')).username, 'sofia_v');
     assert.equal(doc.getElementById('modal-change-password'), null, 'En inicios de sesión posteriores no debe pedir cambio obligatorio');
 
@@ -2481,6 +2498,7 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     doc.getElementById('pwd-new').value = 'MiClaveAuto$99';
     doc.getElementById('pwd-confirm').value = 'MiClaveAuto$99';
     doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     assert.equal(sofiaRec.password, 'MiClaveAuto$99', 'El usuario debe poder actualizar su contraseña autónomamente');
     assert.equal(doc.getElementById('modal-change-password'), null);
 
@@ -2491,6 +2509,7 @@ test('3.17 [Gestión de Contraseñas] Nueva clave admin01 (01Fraterno*), cambio 
     doc.getElementById('login-user').value = 'sofia_v';
     doc.getElementById('login-pass').value = 'MiClaveAuto$99';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     assert.equal(JSON.parse(win.sessionStorage.getItem('fraterno_user')).username, 'sofia_v', 'El usuario debe poder autenticarse con la contraseña cambiada por sí mismo');
 });
 
@@ -3158,6 +3177,7 @@ test('3.24 [Permisos de Módulos por Usuario] Al crear/editar usuario con módul
     doc.getElementById('login-user').value = 'diana_op';
     doc.getElementById('login-pass').value = '1088990011Fp*';
     doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
     win.router();
 
     assert.equal(win.location.hash, '#/registro-salto', 'Debe redirigir al primer módulo permitido cuando Inicio (/) no está asignado');
@@ -3167,6 +3187,7 @@ test('3.24 [Permisos de Módulos por Usuario] Al crear/editar usuario con módul
     doc.getElementById('pwd-new').value = 'DianaSegura#26';
     doc.getElementById('pwd-confirm').value = 'DianaSegura#26';
     doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 25));
 
     const visibleNavRoutes = doc.querySelectorAll('.nav-item')
         .filter(item => item.style.display !== 'none')
@@ -3208,7 +3229,132 @@ test('3.24 [Permisos de Módulos por Usuario] Al crear/editar usuario con módul
     const chkReservas = doc.querySelectorAll('.usr-module-chk').find(c => c.getAttribute('data-route') === '/reservas');
     chkReservas.checked = true;
     doc.getElementById('btn-create-usr').click();
-    await new Promise(r => setTimeout(r, 20));
+    await new Promise(r => setTimeout(r, 25));
 
-    assert.ok(diana.allowedRoutes.includes('/reservas'), 'Al guardar cambios debe actualizarse allowedRoutes con /reservas');
+    const dianaAfterEdit = win.AppData.users.find(u => u.username === 'diana_op');
+    assert.ok(dianaAfterEdit.allowedRoutes.includes('/reservas'), 'Al guardar cambios debe actualizarse allowedRoutes con /reservas');
+});
+
+test('3.25 [Seguridad Multi-Dispositivo al Eliminar Usuario] Impide reingreso y revoca sesión activa en otro equipo aunque no haya refrescado el navegador', async () => {
+    await requestApp('POST', '/api/reset-state', { confirm: true });
+
+    // Equipo A: sesión del Administrador
+    const adminCtx = buildSPAContext();
+    adminCtx.win.showConfirm = async () => true;
+    adminCtx.win.showAlert = () => {};
+    await adminCtx.win.syncStateFromServer();
+    adminCtx.win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    adminCtx.win.sessionStorage.setItem('fraterno_role', 'admin');
+    adminCtx.win.location.hash = '#/configuracion';
+    adminCtx.win.router();
+
+    // 1. Admin crea usuario carlos_del en Equipo A
+    adminCtx.doc.getElementById('usr-name').value = 'Carlos Eliminado';
+    adminCtx.doc.getElementById('usr-username').value = 'carlos_del';
+    adminCtx.doc.getElementById('usr-cedula').value = '1099887766';
+    adminCtx.doc.getElementById('usr-role').value = 'Asesor de Ventas';
+    adminCtx.doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 30));
+
+    // Equipo B: navegador de otro equipo que cargó previamente los datos (tiene a carlos_del en memoria en #/login)
+    const otherPcCtx = buildSPAContext();
+    const otherPcAlerts = [];
+    otherPcCtx.win.showAlert = (msg, opts) => otherPcAlerts.push({ msg, opts });
+    await otherPcCtx.win.syncStateFromServer();
+    otherPcCtx.win.location.hash = '#/login';
+    otherPcCtx.win.router();
+
+    assert.ok(
+        otherPcCtx.win.AppData.users.some(u => u.username === 'carlos_del'),
+        'Equipo B tiene inicialmente a carlos_del en memoria antes de ser eliminado'
+    );
+
+    // 2. Admin elimina a carlos_del desde Equipo A (mientras Equipo B NO refresca su navegador)
+    const carlosRec = adminCtx.win.AppData.users.find(u => u.username === 'carlos_del');
+    const delBtnCarlos = adminCtx.doc.querySelectorAll('#table-usr .btn-delete').find(b => b.getAttribute('data-id') === carlosRec.id);
+    assert.ok(delBtnCarlos, 'Debe existir botón eliminar para carlos_del en Usuarios Activos');
+    delBtnCarlos.closest('.crud-table').dispatchEvent({ type: 'click', target: delBtnCarlos });
+    await new Promise(r => setTimeout(r, 35));
+
+    // Confirmar que Equipo B NO ha refrescado y aún conserva la caché vieja en memoria antes de pulsar Ingresar
+    assert.ok(
+        otherPcCtx.win.AppData.users.some(u => u.username === 'carlos_del'),
+        'Simulación real: Equipo B no ha refrescado la página'
+    );
+
+    // 3. carlos_del intenta ingresar en Equipo B sin refrescar el navegador -> DEBE SER RECHAZADO
+    otherPcCtx.doc.getElementById('login-user').value = 'carlos_del';
+    otherPcCtx.doc.getElementById('login-pass').value = '1099887766Fp*';
+    otherPcCtx.doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 35));
+
+    assert.equal(
+        otherPcCtx.win.sessionStorage.getItem('fraterno_user'),
+        null,
+        'Seguridad crítica: un usuario eliminado NO debe poder iniciar sesión en otro equipo sin refrescar'
+    );
+    assert.equal(otherPcCtx.win.location.hash, '#/login');
+    assert.ok(
+        otherPcAlerts.some(a => a.opts && a.opts.title === 'Acceso Denegado'),
+        'Debe mostrar alerta de Acceso Denegado al usuario eliminado'
+    );
+
+    // 4. Caso de sesión YA iniciada en Equipo B sin refrescar cuando el Admin elimina al usuario en Equipo A
+    adminCtx.doc.getElementById('usr-name').value = 'Lucía Activa';
+    adminCtx.doc.getElementById('usr-username').value = 'lucia_del';
+    adminCtx.doc.getElementById('usr-cedula').value = '1077665544';
+    adminCtx.doc.getElementById('usr-role').value = 'Asesor de Ventas';
+    adminCtx.doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 30));
+
+    // Lucía inicia sesión en Equipo B y actualiza su clave inicial
+    otherPcCtx.doc.getElementById('login-user').value = 'lucia_del';
+    otherPcCtx.doc.getElementById('login-pass').value = '1077665544Fp*';
+    otherPcCtx.doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 35));
+    otherPcCtx.win.router();
+
+    assert.ok(otherPcCtx.doc.getElementById('modal-change-password'));
+    otherPcCtx.doc.getElementById('pwd-new').value = 'LuciaSegura#26';
+    otherPcCtx.doc.getElementById('pwd-confirm').value = 'LuciaSegura#26';
+    otherPcCtx.doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 30));
+    assert.ok(otherPcCtx.win.sessionStorage.getItem('fraterno_user'), 'Lucía tiene sesión activa en Equipo B');
+
+    // Admin elimina a Lucía en Equipo A
+    await adminCtx.win.syncStateFromServer();
+    adminCtx.win.renderUsersTable();
+    const luciaRec = adminCtx.win.AppData.users.find(u => u.username === 'lucia_del');
+    const delBtnLucia = adminCtx.doc.querySelectorAll('#table-usr .btn-delete').find(b => b.getAttribute('data-id') === luciaRec.id);
+    assert.ok(delBtnLucia, 'Debe existir botón eliminar para lucia_del');
+    delBtnLucia.closest('.crud-table').dispatchEvent({ type: 'click', target: delBtnLucia });
+    await new Promise(r => setTimeout(r, 35));
+
+    // Sin refrescar Equipo B, Lucía cambia de módulo (router dispara verifyActiveSessionWithServer)
+    otherPcAlerts.length = 0;
+    otherPcCtx.win.location.hash = '#/checkin';
+    otherPcCtx.win.router();
+    await new Promise(r => setTimeout(r, 35));
+
+    assert.equal(
+        otherPcCtx.win.sessionStorage.getItem('fraterno_user'),
+        null,
+        'La sesión activa en Equipo B debe cerrarse automáticamente sin refrescar el navegador'
+    );
+    assert.equal(otherPcCtx.win.location.hash, '#/login', 'Equipo B debe ser redirigido de inmediato a #/login');
+    assert.ok(
+        otherPcAlerts.some(a => a.opts && a.opts.title === 'Sesión Revocada'),
+        'Debe notificar que la sesión fue cerrada por seguridad tras eliminación del usuario'
+    );
+
+    // 5. Bloqueo de escritura en backend (POST /api/state) si un equipo intenta guardar antes de navegar
+    const unauthorizedWrite = await requestApp(
+        'POST',
+        '/api/state',
+        otherPcCtx.win.AppData,
+        { 'x-fraterno-user-id': luciaRec.id, 'x-fraterno-username': 'lucia_del' }
+    );
+    assert.equal(unauthorizedWrite.status, 401, 'POST /api/state debe rechazar con 401 cualquier escritura de un usuario eliminado');
 });
