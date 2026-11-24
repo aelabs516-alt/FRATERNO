@@ -2564,3 +2564,497 @@ test('3.18 [Seguridad Zona de Reinicio] Solo visible para admin01 (Admin Master)
     assert.equal(win.AppData.users.length, 1);
     assert.equal(win.AppData.users[0].username, 'admin01');
 });
+
+test('3.19 [Registro de Salto - Peso y Recargo KG Extra] Campo Peso (kg) en Datos del pasajero con política automática de recargo (> 85 kg) y persistencia financiera', () => {
+    const { win, doc } = buildSPAContext();
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+
+    win.AppData = win.createBlankAppData();
+    win.AppData.maestroValores = [
+        { name: 'Valor KG Extra', price: '5.000', comision: '0' },
+        { name: 'Salto Tandem', price: '1.500.000', comision: '0' },
+        { name: 'Cámara Go-Pro', price: '100.000', comision: '0' },
+        { name: 'Cámara 360', price: '150.000', comision: '0' },
+        { name: 'Cámara Externa', price: '250.000', comision: '0' }
+    ];
+
+    win.location.hash = '#/registro-salto';
+    win.router();
+
+    const pWeight = doc.getElementById('p-weight');
+    const fKgExtra = doc.getElementById('f-kg-extra');
+    const fKgExtraBadge = doc.getElementById('f-kg-extra-badge');
+    const weightAlert = doc.getElementById('weight-alert');
+    const dKgExtraRow = doc.getElementById('display-kg-extra-row');
+    const dKgExtra = doc.getElementById('display-kg-extra');
+    const dTotal = doc.getElementById('display-total');
+
+    assert.ok(pWeight, 'Debe existir el campo Peso (kg) en Datos del Pasajero');
+    assert.ok(fKgExtra && fKgExtraBadge, 'Debe existir el desglose de Recargo Peso Extra en Lógica Financiera');
+
+    // 1. Peso <= 85 kg -> sin recargo
+    pWeight.value = '80';
+    pWeight.dispatchEvent({ type: 'input', target: pWeight });
+    assert.equal(fKgExtra.value, '0');
+    assert.equal(dTotal.textContent, '$1.500.000');
+    assert.equal(weightAlert.style.display, 'none');
+    assert.equal(dKgExtraRow.style.display, 'none');
+
+    pWeight.value = '85';
+    pWeight.dispatchEvent({ type: 'input', target: pWeight });
+    assert.equal(fKgExtra.value, '0');
+    assert.equal(dTotal.textContent, '$1.500.000');
+
+    // 2. Peso > 85 kg (95 kg -> 10 kg extra * $5.000 = +$50.000)
+    pWeight.value = '95';
+    pWeight.dispatchEvent({ type: 'input', target: pWeight });
+    assert.equal(fKgExtra.value, '50.000', '95 kg debe aplicar recargo de $50.000 (10 kg extra × $5.000)');
+    assert.ok(fKgExtraBadge.textContent.includes('10 kg'));
+    assert.equal(weightAlert.style.display, 'block');
+    assert.ok(weightAlert.innerHTML.includes('50.000'));
+    assert.equal(dKgExtraRow.style.display, 'flex');
+    assert.equal(dKgExtra.textContent, '+$50.000');
+    assert.equal(dTotal.textContent, '$1.550.000');
+
+    // 3. Peso > 100 kg (105 kg -> alerta Jefe de Seguridad S&TA + recargo 20 kg * $5.000 = +$100.000)
+    pWeight.value = '105';
+    pWeight.dispatchEvent({ type: 'input', target: pWeight });
+    assert.equal(fKgExtra.value, '100.000');
+    assert.ok(weightAlert.innerHTML.includes('100 kg') && weightAlert.innerHTML.includes('S&amp;TA'));
+    assert.equal(dTotal.textContent, '$1.600.000');
+
+    // 4. Grupo de 2 pasajeros con tarifa actualizada en Maestro de Valores ($8.000/kg) y guardado completo
+    win.AppData.maestroValores[0].price = '8.000';
+    win.router();
+
+    const futureDate = new Date(Date.now() + 7 * 86400000).toLocaleDateString('en-CA');
+    const qtyInput = doc.getElementById('qty-people');
+    qtyInput.value = '2';
+    qtyInput.dispatchEvent({ type: 'change', target: qtyInput });
+
+    // Pasajero 1: 95 kg -> 10 kg extra * $8.000 = $80.000 -> total $1.580.000
+    doc.getElementById('p-name').value = 'Andrés';
+    doc.getElementById('p-lastname').value = 'Gómez';
+    doc.getElementById('p-doc').value = '10101010';
+    doc.getElementById('p-phone').value = '3001112233';
+    doc.getElementById('p-email').value = 'andres@test.com';
+    doc.getElementById('p-dob').value = '1992-04-10';
+    doc.getElementById('p-weight').value = '95';
+    doc.getElementById('p-weight').dispatchEvent({ type: 'input' });
+    doc.getElementById('p-jumpdate').value = futureDate;
+
+    // Cambiar a Pasajero 2: 88 kg -> 3 kg extra * $8.000 = $24.000 -> total $1.524.000
+    const tabBtns = doc.getElementById('passenger-tabs').children;
+    assert.equal(tabBtns.length, 2);
+    tabBtns[1].onclick();
+
+    doc.getElementById('p-name').value = 'Camila';
+    doc.getElementById('p-lastname').value = 'Ríos';
+    doc.getElementById('p-doc').value = '20202020';
+    doc.getElementById('p-phone').value = '3004445566';
+    doc.getElementById('p-email').value = 'camila@test.com';
+    doc.getElementById('p-dob').value = '1996-08-20';
+    doc.getElementById('p-weight').value = '88';
+    doc.getElementById('p-weight').dispatchEvent({ type: 'input' });
+    doc.getElementById('p-jumpdate').value = futureDate;
+
+    assert.equal(doc.getElementById('display-kg-extra').textContent, '+$104.000', 'El recargo grupal debe sumar $80.000 + $24.000 = $104.000');
+    assert.equal(doc.getElementById('display-total').textContent, '$3.104.000', 'El total grupal debe incluir ambos recargos por peso extra');
+
+    // Pago completo y guardar reserva
+    const fullPay = doc.getElementById('global-fullpay');
+    fullPay.value = 'si';
+    fullPay.dispatchEvent({ type: 'change' });
+    doc.getElementById('btn-save-res').click();
+
+    assert.equal(win.AppData.passengers.length, 2, 'Deben persistirse ambos pasajeros');
+    const pax1 = win.AppData.passengers.find(p => p.doc === '10101010');
+    const pax2 = win.AppData.passengers.find(p => p.doc === '20202020');
+
+    assert.equal(pax1.weight, 95);
+    assert.equal(pax1.financiera.kgExtra, 10);
+    assert.equal(pax1.financiera.kgExtraRate, 8000);
+    assert.equal(pax1.financiera.kgExtraCharge, 80000);
+    assert.equal(pax1.financiera.totalValue, 1580000);
+    assert.equal(pax1.financiera.totalPaid, 1580000);
+
+    assert.equal(pax2.weight, 88);
+    assert.equal(pax2.financiera.kgExtra, 3);
+    assert.equal(pax2.financiera.kgExtraCharge, 24000);
+    assert.equal(pax2.financiera.totalValue, 1524000);
+    assert.equal(pax2.financiera.totalPaid, 1524000);
+
+    // Verificar compatibilidad con getPaxFinancialSummary (usado en Reservas)
+    const summary1 = win.getPaxFinancialSummary(pax1);
+    assert.equal(summary1.totalValue, 1580000);
+    assert.equal(summary1.pending, 0);
+    assert.equal(summary1.isComplete, true);
+});
+
+test('3.20 [Programación y Edición de Vuelo + Peso] Desglose y selección de vuelo por fecha en Registro de Salto y edición de vuelo/peso en Panel Derecho de Reservas', () => {
+    const { win, doc, alerts } = buildSPAContext();
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+
+    // Calcular próximo sábado futuro (garantiza día operativo != lunes/martes)
+    const d = new Date();
+    const daysToSat = ((6 - d.getDay() + 7) % 7) || 7;
+    d.setDate(d.getDate() + daysToSat);
+    const opDate = d.toLocaleDateString('en-CA');
+
+    win.AppData = win.createBlankAppData();
+    win.AppData.maestroValores = [
+        { name: 'Valor KG Extra', price: '5.000', comision: '0' },
+        { name: 'Salto Tandem', price: '1.500.000', comision: '0' },
+        { name: 'Cámara Go-Pro', price: '100.000', comision: '0' },
+        { name: 'Cámara 360', price: '150.000', comision: '0' },
+        { name: 'Cámara Externa', price: '250.000', comision: '0' }
+    ];
+    win.AppData.aeronaves = [
+        { id: 'av_1', matricula: 'HK-1820', modelo: 'Cessna 182', capTan: 2, capFun: 2, capCop: 1, estado: 'Operativa' }
+    ];
+    win.AppData.asignacionFlota = [
+        { id: 'flt_1', id_aeronave: 'av_1', fecha: opDate, horaInicio: '08:00', horaFin: '08:30', estado: 'Programado' },
+        { id: 'flt_2', id_aeronave: 'av_1', fecha: opDate, horaInicio: '09:00', horaFin: '09:30', estado: 'Programado' },
+        { id: 'flt_3', id_aeronave: 'av_1', fecha: opDate, horaInicio: '10:00', horaFin: '10:30', estado: 'Programado' }
+    ];
+    // flt_1 lleno (2/2 Tándem), flt_2 parcial (1/2 Tándem), flt_3 libre (0/2 Tándem)
+    win.AppData.passengers = [
+        { id: 'p_full_1', name: 'Pax Uno', doc: '111', phone: '300', date: opDate, type: 'Salto Tandem', flightId: 'flt_1', aeronave: 'HK-1820', vueloNum: 'Vuelo 1', time: '08:00', weight: 70, financiera: { manualPrice: 1500000, totalValue: 1500000, totalPaid: 1500000 } },
+        { id: 'p_full_2', name: 'Pax Dos', doc: '222', phone: '300', date: opDate, type: 'Salto Tandem', flightId: 'flt_1', aeronave: 'HK-1820', vueloNum: 'Vuelo 1', time: '08:00', weight: 72, financiera: { manualPrice: 1500000, totalValue: 1500000, totalPaid: 1500000 } },
+        { id: 'p_half_1', name: 'Pax Tres', doc: '333', phone: '300', date: opDate, type: 'Salto Tandem', flightId: 'flt_2', aeronave: 'HK-1820', vueloNum: 'Vuelo 2', time: '09:00', weight: 68, financiera: { manualPrice: 1500000, totalValue: 1500000, totalPaid: 1500000 } }
+    ];
+
+    // 1. REGISTRO DE SALTO: Seleccionar fecha -> desglosa ocupación y vuelos del día y permite programar pasajero en vuelo
+    win.location.hash = '#/registro-salto';
+    win.router();
+
+    const pJumpDate = doc.getElementById('p-jumpdate');
+    const pFlightSelect = doc.getElementById('p-flight-select');
+    const pFlightsBreakdown = doc.getElementById('p-flights-breakdown');
+
+    assert.ok(pFlightSelect && pFlightsBreakdown, 'Debe existir el selector de vuelo y el desglose de vuelos del día');
+
+    pJumpDate.value = opDate;
+    pJumpDate.dispatchEvent({ type: 'change', target: pJumpDate });
+
+    assert.ok(doc.getElementById('p-capacity-info').innerHTML.includes('3/6'), 'Debe mostrar la ocupación diaria de Tándem (3/6 disponibles)');
+    assert.equal(pFlightSelect.disabled, false, 'Al seleccionar una fecha con vuelos, el selector de vuelos debe habilitarse');
+    assert.equal(pFlightsBreakdown.style.display, 'block', 'Debe mostrar el desglose visual de vuelos del día');
+    assert.ok(pFlightsBreakdown.innerHTML.includes('Vuelo 1') && pFlightsBreakdown.innerHTML.includes('Vuelo 2') && pFlightsBreakdown.innerHTML.includes('Vuelo 3'));
+    assert.ok(pFlightSelect.innerHTML.includes('flt_1') && pFlightSelect.innerHTML.includes('SIN CUPO'), 'El vuelo lleno debe mostrarse como SIN CUPO y deshabilitado');
+    assert.ok(pFlightSelect.innerHTML.includes('1/2 Tándem disp.') && pFlightSelect.innerHTML.includes('2/2 Tándem disp.'));
+
+    // Programar nuevo pasajero en flt_2 (Vuelo 2, 09:00, HK-1820) con peso 90 kg
+    doc.getElementById('p-name').value = 'Mateo';
+    doc.getElementById('p-lastname').value = 'Vargas';
+    doc.getElementById('p-doc').value = '77889900';
+    doc.getElementById('p-phone').value = '3007778899';
+    doc.getElementById('p-email').value = 'mateo@test.com';
+    doc.getElementById('p-dob').value = '1993-07-15';
+    doc.getElementById('p-weight').value = '90';
+    doc.getElementById('p-weight').dispatchEvent({ type: 'input' });
+
+    pFlightSelect.value = 'flt_2';
+    pFlightSelect.dispatchEvent({ type: 'change', target: pFlightSelect });
+
+    doc.getElementById('btn-save-res').click();
+
+    const mateo = win.AppData.passengers.find(p => p.doc === '77889900');
+    assert.ok(mateo, 'El pasajero debe guardarse correctamente');
+    assert.equal(mateo.flightId, 'flt_2');
+    assert.equal(mateo.aeronave, 'HK-1820');
+    assert.equal(mateo.vueloNum, 'Vuelo 2');
+    assert.equal(mateo.time, '09:00');
+    assert.equal(mateo.weight, 90);
+    assert.equal(mateo.financiera.kgExtraCharge, 25000);
+
+    // 2. RESERVAS (Panel Derecho -> Editar Reserva): Editar vuelo (solo disponibles o sin vuelo) y editar peso
+    win.location.hash = '#/reservas';
+    win.router();
+
+    const dateFilter = doc.getElementById('booking-date-filter');
+    dateFilter.value = opDate;
+    dateFilter.dispatchEvent({ type: 'change', target: dateFilter });
+
+    const editBtns = doc.querySelectorAll('.btn-edit-res');
+    const mateoEditBtn = editBtns.find(b => b.dataset.id === mateo.id);
+    assert.ok(mateoEditBtn, 'Debe aparecer el botón Editar Reserva para Mateo en el panel derecho');
+    mateoEditBtn.click();
+
+    const iEditWeight = doc.getElementById('edit-res-weight');
+    const iEditFlight = doc.getElementById('edit-res-flight');
+    const btnConfirmEdit = doc.getElementById('btn-confirm-edit-res');
+
+    assert.equal(String(iEditWeight.value), '90', 'Debe precargar el peso actual del pasajero');
+    assert.equal(iEditFlight.value, 'flt_2', 'Debe precargar el vuelo actual del pasajero');
+    assert.ok(String(iEditFlight.getAttribute('style') || '').includes('width: 100%'), 'El selector de vuelo debe ocupar ancho completo para no recortar el texto');
+    assert.ok(!iEditFlight.innerHTML.includes('value="flt_1"'), 'NO debe ofrecer el Vuelo 1 lleno en el selector de edición');
+    assert.ok(iEditFlight.innerHTML.includes('value="flt_2"') && iEditFlight.innerHTML.includes('0/2 Tándem disp. (Vuelo actual)'), 'El vuelo actual lleno debe reflejar 0/2 real (sin inflar a 1/2)');
+    assert.ok(iEditFlight.innerHTML.includes('value="flt_3"') && iEditFlight.innerHTML.includes('2/2 Tándem disp.'), 'Vuelo 3 libre debe mostrar 2/2 Tándem disp.');
+    assert.ok(iEditFlight.innerHTML.includes('Sin vuelo asignado'), 'Debe incluir la opción de dejar sin vuelo');
+
+    // A) Cambiar vuelo a flt_3 (Vuelo 3, 10:00) y editar peso a 98 kg (13 kg extra = $65.000)
+    iEditFlight.value = 'flt_3';
+    iEditWeight.value = '98';
+    iEditWeight.dispatchEvent({ type: 'input' });
+    btnConfirmEdit.click();
+
+    assert.equal(mateo.flightId, 'flt_3');
+    assert.equal(mateo.aeronave, 'HK-1820');
+    assert.equal(mateo.vueloNum, 'Vuelo 3');
+    assert.equal(mateo.time, '10:00');
+    assert.equal(mateo.weight, 98);
+    assert.equal(mateo.financiera.kgExtra, 13);
+    assert.equal(mateo.financiera.kgExtraCharge, 65000);
+    assert.equal(mateo.financiera.totalValue, 1565000);
+
+    // B) Reabrir edición de Mateo (ahora único pasajero en Vuelo 3 de cap 2) -> Vuelo 3 DEBE reflejar 1/2 Tándem disp. (NO 2/2) y dejar SIN VUELO + peso 75 kg
+    const mateoEditBtn2 = doc.querySelectorAll('.btn-edit-res').find(b => b.dataset.id === mateo.id);
+    mateoEditBtn2.click();
+
+    assert.ok(iEditFlight.innerHTML.includes('1/2 Tándem disp. (Vuelo actual)'), 'Con 1 pasajero Tándem en vuelo de capacidad 2 debe mostrar 1/2 Tándem disp. y NO 2/2');
+
+    iEditFlight.value = '';
+    iEditWeight.value = '75';
+    btnConfirmEdit.click();
+
+    assert.equal(mateo.flightId, '');
+    assert.equal(mateo.aeronave, 'Sin asignar');
+    assert.equal(mateo.vueloNum, '');
+    assert.equal(mateo.time, 'Por definir');
+    assert.equal(mateo.weight, 75);
+    assert.equal(mateo.financiera.kgExtra, 0);
+    assert.equal(mateo.financiera.kgExtraCharge, 0);
+    assert.equal(mateo.financiera.totalValue, 1500000);
+
+    // C) Bloquear asignación forzada a un vuelo lleno (flt_1)
+    const mateoEditBtn3 = doc.querySelectorAll('.btn-edit-res').find(b => b.dataset.id === mateo.id);
+    mateoEditBtn3.click();
+    const alertsCountBefore = alerts.length;
+    iEditFlight.value = 'flt_1';
+    btnConfirmEdit.click();
+    assert.ok(alerts.length > alertsCountBefore, 'Debe rechazar la asignación a un vuelo sin disponibilidad');
+    assert.equal(mateo.aeronave, 'Sin asignar', 'El pasajero debe permanecer sin vuelo si se intenta asignar uno lleno');
+});
+
+test('3.21 [Manifiesto - Autorización Admin Waiver] Cambio de estado con Waiver pendiente solo por admin o con clave de algún admin (una única vez por pasajero)', async () => {
+    const { win, doc } = buildSPAContext();
+    const alertsShown = [];
+    win.showAlert = async (msg, opts) => { alertsShown.push({ msg, opts }); };
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    win.AppData = win.createBlankAppData();
+    win.AppData.users = [
+        { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: '01Fraterno*' },
+        { id: 'usr_laura', name: 'Laura Admin', username: 'laura_admin', role: 'Administrador', password: 'LauraAdmin#1' },
+        { id: 'usr_carlos', name: 'Carlos Operaciones', username: 'carlos_op', role: 'Operaciones', password: 'CarlosOp#1' },
+        { id: 'usr_sofia', name: 'Sofía Ventas', username: 'sofia_v', role: 'Asesor de Ventas', password: 'SofiaVen#1' }
+    ];
+    win.AppData.passengers = [
+        {
+            id: 'pax_nw_1', name: 'Diego SinFirma', doc: '111000', phone: '300111',
+            date: todayStr, type: 'Salto Tandem', aeronave: 'HK-1820', vueloNum: 'Vuelo 1', time: '08:00',
+            weight: 75, paxStatus: 'Check-in Listo', flightStatus: 'Programado', waiverSigned: false
+        },
+        {
+            id: 'pax_nw_2', name: 'Elena SinFirma', doc: '222000', phone: '300222',
+            date: todayStr, type: 'Salto Tandem', aeronave: 'HK-1820', vueloNum: 'Vuelo 2', time: '09:00',
+            weight: 68, paxStatus: 'Check-in Listo', flightStatus: 'Programado', waiverSigned: false
+        }
+    ];
+
+    const flush = () => new Promise(r => setTimeout(r, 25));
+    const getFlightSelect = (vueloNum) => doc.querySelectorAll('.flight-status-select').find(s => String(s.getAttribute('data-key') || '').includes(vueloNum));
+
+    // 1. Sesión de usuario NO administrador (Operaciones) -> solicita contraseña de algún administrador
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_carlos', name: 'Carlos Operaciones', username: 'carlos_op', role: 'Operaciones'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin'); // Incluso si fraterno_role viene como 'admin' por login.js
+    win.location.hash = '#/manifiesto';
+    win.router();
+
+    let promptCount = 0;
+    let lastPromptType = null;
+
+    // 1a. Cancelar contraseña -> no cambia estado
+    win.showPrompt = async (_msg, opts) => {
+        promptCount++;
+        lastPromptType = opts && opts.inputType;
+        return null;
+    };
+    let sel1 = getFlightSelect('Vuelo 1');
+    assert.ok(sel1, 'Debe existir selector de estado para Vuelo 1');
+    sel1.value = 'Abordando';
+    sel1.dispatchEvent({ type: 'change', target: sel1 });
+    await flush();
+    assert.equal(promptCount, 1, 'Debe pedir contraseña de administrador para usuario Operaciones');
+    assert.equal(lastPromptType, 'password');
+    assert.equal(win.AppData.passengers[0].flightStatus, 'Programado', 'Al cancelar no debe cambiar el estado del vuelo');
+    assert.ok(!win.AppData.passengers[0].waiverAdminAuthorized);
+
+    // 1b. Ingresar contraseña de un NO administrador (propia de Operaciones) -> rechaza
+    win.showPrompt = async () => { promptCount++; return 'CarlosOp#1'; };
+    sel1 = getFlightSelect('Vuelo 1');
+    sel1.value = 'Abordando';
+    sel1.dispatchEvent({ type: 'change', target: sel1 });
+    await flush();
+    assert.equal(win.AppData.passengers[0].flightStatus, 'Programado', 'La contraseña de un no-administrador no debe autorizar');
+    assert.ok(alertsShown.some(a => String(a.msg).includes('incorrecta')));
+    assert.ok(!win.AppData.passengers[0].waiverAdminAuthorized);
+
+    // 1c. Ingresar contraseña de ALGÚN administrador (Laura Admin) -> autoriza y cambia estado
+    win.showPrompt = async () => { promptCount++; return 'LauraAdmin#1'; };
+    sel1 = getFlightSelect('Vuelo 1');
+    sel1.value = 'Abordando';
+    sel1.dispatchEvent({ type: 'change', target: sel1 });
+    await flush();
+    assert.equal(win.AppData.passengers[0].flightStatus, 'Abordando', 'Con contraseña de algún administrador debe permitir cambiar estado');
+    assert.equal(win.AppData.passengers[0].waiverAdminAuthorized, true, 'El pasajero debe quedar autorizado permanentemente');
+    assert.equal(win.AppData.passengers[0].waiverAuthorizedBy, 'Laura Admin');
+
+    // 2. Cambios posteriores sobre ese mismo pasajero (incluso por NO administrador) NO deben volver a pedir autorización
+    const promptsAfterAuth = promptCount;
+    win.showPrompt = async () => { promptCount++; return '01Fraterno*'; };
+    sel1 = getFlightSelect('Vuelo 1');
+    sel1.value = 'Paracaidistas en el aire';
+    sel1.dispatchEvent({ type: 'change', target: sel1 });
+    await flush();
+    assert.equal(promptCount, promptsAfterAuth, 'Una vez autorizado el pasajero, no debe solicitar más autorización de administrador');
+    assert.equal(win.AppData.passengers[0].flightStatus, 'Paracaidistas en el aire');
+
+    // Confirmar que también funciona hacia En El Aire (modal checklist no bloqueado)
+    sel1 = getFlightSelect('Vuelo 1');
+    sel1.value = 'En El Aire';
+    sel1.dispatchEvent({ type: 'change', target: sel1 });
+    await flush();
+    assert.equal(promptCount, promptsAfterAuth, 'Abrir despegue para pasajero ya autorizado no debe volver a pedir clave');
+    const btnConfirmChk = doc.getElementById('btn-confirm-chk');
+    assert.equal(btnConfirmChk.disabled, false, 'El botón Confirmar Despegue debe permanecer habilitado tras autorización');
+
+    // 3. Sesión de Administrador directa sobre Vuelo 2 (Elena SinFirma) -> cambia sin pedir contraseña y marca autorización permanente
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_laura', name: 'Laura Admin', username: 'laura_admin', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.router();
+
+    let adminPrompts = 0;
+    win.showPrompt = async () => { adminPrompts++; return null; };
+    let sel2 = getFlightSelect('Vuelo 2');
+    sel2.value = 'Abordando';
+    sel2.dispatchEvent({ type: 'change', target: sel2 });
+    await flush();
+    assert.equal(adminPrompts, 0, 'Un administrador no requiere ingresar contraseña para cambiar el estado');
+    assert.equal(win.AppData.passengers[1].flightStatus, 'Abordando');
+    assert.equal(win.AppData.passengers[1].waiverAdminAuthorized, true);
+
+    // 4. Usuario Ventas cambiando después Vuelo 2 (ya autorizado por Admin) -> tampoco pide contraseña
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_sofia', name: 'Sofía Ventas', username: 'sofia_v', role: 'Asesor de Ventas'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'ventas');
+    win.router();
+
+    let salesPrompts = 0;
+    win.showPrompt = async () => { salesPrompts++; return null; };
+    sel2 = getFlightSelect('Vuelo 2');
+    sel2.value = 'Paracaidistas en el aire';
+    sel2.dispatchEvent({ type: 'change', target: sel2 });
+    await flush();
+    assert.equal(salesPrompts, 0, 'Si un administrador ya autorizó al pasajero, otro usuario tampoco volverá a recibir solicitud');
+    assert.equal(win.AppData.passengers[1].flightStatus, 'Paracaidistas en el aire');
+});
+
+test('3.22 [Registro de Salto - Condición Médica] Campo Con Condición Médica en Datos del pasajero, validación obligatoria y sincronización con Reservas', () => {
+    const { win, doc, alerts } = buildSPAContext();
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+
+    const futureDate = new Date(Date.now() + 7 * 86400000).toLocaleDateString('en-CA');
+    win.AppData = win.createBlankAppData();
+
+    win.location.hash = '#/registro-salto';
+    win.router();
+
+    const chkMed = doc.getElementById('p-has-medical');
+    const medBox = doc.getElementById('p-medical-container');
+    const medInput = doc.getElementById('p-medical-condition');
+    assert.ok(chkMed && medBox && medInput, 'Debe existir el campo Con Condición Médica y el detalle reportado en Datos del Pasajero');
+    assert.ok(medBox.style.display === 'none' || String(medBox.getAttribute('style') || '').includes('display: none'));
+
+    // Configurar grupo de 2 pasajeros
+    const qtyInput = doc.getElementById('qty-people');
+    qtyInput.value = '2';
+    qtyInput.dispatchEvent({ type: 'change', target: qtyInput });
+
+    // Pasajero 1: marcar Con Condición Médica sin detalle -> debe rechazar al guardar
+    doc.getElementById('p-name').value = 'Valeria';
+    doc.getElementById('p-lastname').value = 'Castro';
+    doc.getElementById('p-doc').value = '555111';
+    doc.getElementById('p-phone').value = '3005551111';
+    doc.getElementById('p-email').value = 'valeria@test.com';
+    doc.getElementById('p-dob').value = '1994-03-12';
+    doc.getElementById('p-jumpdate').value = futureDate;
+
+    chkMed.checked = true;
+    chkMed.dispatchEvent({ type: 'change', target: chkMed });
+    assert.equal(medBox.style.display, 'block', 'Al marcar Con Condición Médica debe mostrarse el campo de detalle');
+
+    // Cambiar a Pasajero 2 (sin condición médica)
+    const tabs = doc.getElementById('passenger-tabs').children;
+    tabs[1].onclick();
+    assert.equal(chkMed.checked, false, 'El Pasajero 2 debe iniciar sin condición médica marcada');
+    assert.equal(medBox.style.display, 'none');
+
+    doc.getElementById('p-name').value = 'Tomás';
+    doc.getElementById('p-lastname').value = 'Ruiz';
+    doc.getElementById('p-doc').value = '555222';
+    doc.getElementById('p-phone').value = '3005552222';
+    doc.getElementById('p-email').value = 'tomas@test.com';
+    doc.getElementById('p-dob').value = '1991-09-05';
+    doc.getElementById('p-jumpdate').value = futureDate;
+
+    // Intentar guardar con Pasajero 1 sin descripción médica -> bloqueado
+    const alertsBefore = alerts.length;
+    doc.getElementById('btn-save-res').click();
+    assert.ok(alerts.length > alertsBefore, 'Debe exigir describir la condición médica si la casilla está marcada');
+    assert.equal(win.AppData.passengers.length, 0);
+
+    // Volver al Pasajero 1 e ingresar la condición médica reportada
+    tabs[0].onclick();
+    assert.equal(chkMed.checked, true);
+    medInput.value = 'Asma leve controlada con inhalador';
+    medInput.dispatchEvent({ type: 'input', target: medInput });
+
+    doc.getElementById('btn-save-res').click();
+    assert.equal(win.AppData.passengers.length, 2, 'Deben guardarse ambos pasajeros correctamente');
+
+    const p1 = win.AppData.passengers.find(p => p.doc === '555111');
+    const p2 = win.AppData.passengers.find(p => p.doc === '555222');
+    assert.equal(p1.medicalCondition, 'Asma leve controlada con inhalador');
+    assert.equal(p2.medicalCondition, 'Ninguna');
+
+    // Verificar sincronización con filtro Con Condición Médica en Reservas
+    win.location.hash = '#/reservas';
+    win.router();
+    const dateFilter = doc.getElementById('booking-date-filter');
+    dateFilter.value = futureDate;
+    dateFilter.dispatchEvent({ type: 'change', target: dateFilter });
+
+    const filterMed = doc.getElementById('filter-medical');
+    filterMed.checked = true;
+    filterMed.dispatchEvent({ type: 'change', target: filterMed });
+
+    const paxListHtml = doc.getElementById('booking-pax-list').innerHTML;
+    assert.ok(paxListHtml.includes('Valeria Castro') && paxListHtml.includes('fa-heartbeat') && paxListHtml.includes('Asma leve controlada con inhalador'), 'El filtro de Reservas debe mostrar a Valeria con su condición médica reportada');
+    assert.ok(!paxListHtml.includes('Tomás Ruiz'), 'El filtro Con Condición Médica debe ocultar pasajeros sin condición médica');
+});

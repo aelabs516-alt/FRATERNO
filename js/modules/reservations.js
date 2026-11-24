@@ -105,6 +105,10 @@ window.Modules.reservations = {
                                 <input type="date" id="p-dob" class="form-control input-glow">
                             </div>
                             <div class="form-group">
+                                <label for="p-weight">Peso (kg)</label>
+                                <input type="number" id="p-weight" class="form-control input-glow" min="0" max="200" step="0.5" placeholder="Ej. 75">
+                            </div>
+                            <div class="form-group">
                                 <label>Fecha de Salto</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: stretch;">
                                     <input type="date" id="p-jumpdate" class="form-control input-glow" style="flex: 1;">
@@ -112,11 +116,33 @@ window.Modules.reservations = {
                                 </div>
                                 <div id="p-capacity-info" style="font-size: 0.85rem; margin-top: 0.25rem; font-weight: 600;"></div>
                             </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="p-flight-select">Vuelo Programado</label>
+                                <select id="p-flight-select" class="form-control input-glow" style="width: 100%; max-width: 100%; text-overflow: ellipsis;" disabled>
+                                    <option value="">Sin asignar vuelo (Por definir)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 0; padding: 0.85rem 1rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-surface-hover);">
+                                <label for="p-has-medical" style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 600; color: var(--brand-danger); margin: 0;">
+                                    <input type="checkbox" id="p-has-medical" style="width: 17px; height: 17px; accent-color: var(--brand-danger); cursor: pointer;">
+                                    <i class="fas fa-heartbeat"></i>
+                                    <span>Con Condición Médica</span>
+                                </label>
+                                <div id="p-medical-container" style="display: none; margin-top: 0.75rem;">
+                                    <label for="p-medical-condition" style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 0.35rem; display: block;">Condición médica reportada por el pasajero *</label>
+                                    <textarea id="p-medical-condition" class="form-control input-glow" rows="2" placeholder="Describe la condición médica reportada (ej. asma, cirugía reciente, alergias, vértigo, etc.)..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="p-flights-breakdown" style="display: none; margin-top: 1rem; padding: 0.9rem 1rem; background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 10px;">
                         </div>
                         
                         <div id="minor-alert" class="alert alert-warning" style="display: none; background: rgba(255,152,0,0.15); margin-top: 1rem;">
                             <i class="fas fa-exclamation-triangle"></i>
                             <span><strong>Atención:</strong> El pasajero es menor de edad. Debe saltar con un adulto responsable.</span>
+                        </div>
+                        <div id="weight-alert" class="alert alert-warning" style="display: none; background: rgba(245,158,11,0.12); border-left: 4px solid var(--brand-warning); color: var(--text-primary); margin-top: 0.75rem; padding: 0.8rem 1rem; border-radius: 8px; font-size: 0.88rem;">
                         </div>
                     </div>
                 </div>
@@ -140,6 +166,13 @@ window.Modules.reservations = {
                             <div class="form-group">
                                 <label>Valor Salto Venta ($)</label>
                                 <input type="text" id="f-baseprice" class="form-control price-input" value="1.500.000" readonly style="background: var(--bg-surface-hover);">
+                            </div>
+                            <div class="form-group" id="f-kg-extra-group">
+                                <label for="f-kg-extra">Recargo Peso Extra (&gt; 85 kg) ($)</label>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="text" id="f-kg-extra" class="form-control" value="0" readonly style="background: var(--bg-surface-hover); font-weight: 600;">
+                                    <span id="f-kg-extra-badge" style="font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">Sin recargo (≤ 85 kg)</span>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Descuento ($)</label>
@@ -192,6 +225,10 @@ window.Modules.reservations = {
 
                             <!-- Totals Box -->
                             <div class="neon-total-box" style="margin-top: auto;">
+                                <div id="display-kg-extra-row" style="display: none; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.95rem;">
+                                    <span style="color: var(--brand-warning); font-weight: 600;"><i class="fas fa-weight"></i> Recargo Peso Extra (Grupo)</span>
+                                    <strong id="display-kg-extra" style="color: var(--brand-warning);">$0</strong>
+                                </div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 1.1rem;">
                                     <span style="color: var(--text-secondary);">Total a Pagar (Grupo)</span>
                                     <strong id="display-total">$0</strong>
@@ -276,7 +313,13 @@ window.Modules.reservations = {
         const pPhone = document.getElementById('p-phone');
         const pEmail = document.getElementById('p-email');
         const pDob = document.getElementById('p-dob');
+        const pWeight = document.getElementById('p-weight');
         const pJumpDate = document.getElementById('p-jumpdate');
+        const pFlightSelect = document.getElementById('p-flight-select');
+        const pFlightsBreakdown = document.getElementById('p-flights-breakdown');
+        const pHasMedical = document.getElementById('p-has-medical');
+        const pMedicalContainer = document.getElementById('p-medical-container');
+        const pMedicalCondition = document.getElementById('p-medical-condition');
         const globalJumptype = document.getElementById('global-jumptype');
         
         // Finance Inputs
@@ -284,6 +327,8 @@ window.Modules.reservations = {
         const fCortesiaObs = document.getElementById('f-cortesia-obs');
         const containerCortesiaObs = document.getElementById('container-cortesia-obs');
         const fBasePrice = document.getElementById('f-baseprice');
+        const fKgExtra = document.getElementById('f-kg-extra');
+        const fKgExtraBadge = document.getElementById('f-kg-extra-badge');
         const fDiscount = document.getElementById('f-discount');
         const fComisionTo = document.getElementById('f-comision-to');
         const fComisionVal = document.getElementById('f-comision-val');
@@ -295,14 +340,82 @@ window.Modules.reservations = {
         const globalAbonoContainer = document.getElementById('global-abono-container');
 
         // Displays
+        const dKgExtraRow = document.getElementById('display-kg-extra-row');
+        const dKgExtra = document.getElementById('display-kg-extra');
         const dTotal = document.getElementById('display-total');
         const dAbono = document.getElementById('display-abono');
         const dPending = document.getElementById('display-pending');
         const minorAlert = document.getElementById('minor-alert');
+        const weightAlert = document.getElementById('weight-alert');
 
         // Format Currency Helpers
         const formatCurrency = (num) => num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         const parseCurrency = (str) => parseInt(String(str).replace(/\D/g, ''), 10) || 0;
+
+        // Política de Recargo por Peso Extra (> 85 kg)
+        const EXTRA_WEIGHT_THRESHOLD_KG = 85;
+        const getKgExtraRate = (record = null) => {
+            if (window.TariffGuard) {
+                const rate = window.TariffGuard.getPriceForRecord(record, 'Valor KG Extra');
+                if (rate > 0) return rate;
+            }
+            const maestro = (window.AppData && Array.isArray(window.AppData.maestroValores)) ? window.AppData.maestroValores : [];
+            const mItem = maestro.find(m => m.name === 'Valor KG Extra');
+            if (mItem) {
+                const parsed = parseCurrency(mItem.price);
+                if (parsed > 0) return parsed;
+            }
+            return 5000;
+        };
+
+        const getExtraWeightDetails = (weightVal, record = null) => {
+            const w = parseFloat(weightVal);
+            const validWeight = (!isNaN(w) && w > 0) ? w : 0;
+            const extraKg = validWeight > EXTRA_WEIGHT_THRESHOLD_KG
+                ? Number((validWeight - EXTRA_WEIGHT_THRESHOLD_KG).toFixed(2))
+                : 0;
+            const rate = getKgExtraRate(record);
+            const charge = extraKg > 0 ? Math.round(extraKg * rate) : 0;
+            return { weight: validWeight, extraKg, rate, charge };
+        };
+
+        const updateWeightUI = (weightVal, record = null) => {
+            const wt = getExtraWeightDetails(weightVal, record);
+            if (fKgExtra) {
+                fKgExtra.value = formatCurrency(wt.charge);
+                fKgExtra.style.color = wt.charge > 0 ? 'var(--brand-warning)' : '';
+            }
+            if (fKgExtraBadge) {
+                if (wt.extraKg > 0) {
+                    fKgExtraBadge.textContent = `${wt.extraKg} kg × $${formatCurrency(wt.rate)}`;
+                    fKgExtraBadge.style.color = 'var(--brand-warning)';
+                    fKgExtraBadge.style.fontWeight = '700';
+                } else {
+                    fKgExtraBadge.textContent = 'Sin recargo (≤ 85 kg)';
+                    fKgExtraBadge.style.color = 'var(--text-secondary)';
+                    fKgExtraBadge.style.fontWeight = '400';
+                }
+            }
+            if (weightAlert) {
+                if (wt.weight > 100) {
+                    weightAlert.style.display = 'block';
+                    weightAlert.style.borderLeftColor = 'var(--brand-danger)';
+                    weightAlert.style.background = 'rgba(239, 68, 68, 0.12)';
+                    weightAlert.style.color = 'var(--brand-danger)';
+                    weightAlert.innerHTML = `<i class="fas fa-exclamation-circle"></i> <strong>Atención (Peso superior a 100 kg):</strong> Requiere evaluación con el Jefe de Seguridad (S&amp;TA) para autorizar el salto. Adicionalmente aplica recargo por sobrepeso (&gt; 85 kg): <strong>${wt.extraKg} kg extra × $${formatCurrency(wt.rate)} = +$${formatCurrency(wt.charge)} COP</strong>.`;
+                } else if (wt.extraKg > 0) {
+                    weightAlert.style.display = 'block';
+                    weightAlert.style.borderLeftColor = 'var(--brand-warning)';
+                    weightAlert.style.background = 'rgba(245, 158, 11, 0.12)';
+                    weightAlert.style.color = 'var(--text-primary)';
+                    weightAlert.innerHTML = `<i class="fas fa-weight"></i> <strong>Política de Sobrepeso (&gt; 85 kg):</strong> Aplica recargo de <strong>$${formatCurrency(wt.rate)} COP</strong> por cada Kg extra → <strong>${wt.extraKg} kg extra (+$${formatCurrency(wt.charge)} COP)</strong> sumados al total.`;
+                } else {
+                    weightAlert.style.display = 'none';
+                    weightAlert.innerHTML = '';
+                }
+            }
+            return wt;
+        };
 
         // Capacity Helper
         function getAvailableCapacityForDate(dateStrYMD) {
@@ -368,7 +481,9 @@ window.Modules.reservations = {
             // Adjust array size
             while(passengers.length < count) {
                 passengers.push({
-                    name: '', doc: '', phone: '', email: '', dob: '', jumpdate: '',
+                    name: '', doc: '', phone: '', email: '', dob: '', weight: '', jumpdate: '',
+                    flightId: '', aeronave: 'Sin asignar', vueloNum: '', time: 'Por definir',
+                    hasMedicalCondition: false, medicalCondition: '',
                     cortesia: false, manualPrice: getBasePriceForJumpType(globalJumptype.value, null) || 1500000, discount: 0,
                     adiciones: {},
                     comisionTo: '', comisionVal: 0, payMethod: 'Efectivo'
@@ -416,7 +531,12 @@ window.Modules.reservations = {
             p.phone = pPhone.value;
             p.email = pEmail.value;
             p.dob = pDob.value;
+            if (pWeight) p.weight = pWeight.value;
             p.jumpdate = pJumpDate.value;
+            if (pHasMedical) {
+                p.hasMedicalCondition = Boolean(pHasMedical.checked);
+                p.medicalCondition = p.hasMedicalCondition && pMedicalCondition ? pMedicalCondition.value.trim() : '';
+            }
             
             p.cortesia = fCortesia.checked;
             p.cortesiaObs = fCortesiaObs.value;
@@ -437,7 +557,15 @@ window.Modules.reservations = {
             pPhone.value = p.phone;
             pEmail.value = p.email;
             pDob.value = p.dob;
+            if (pWeight) pWeight.value = (p.weight !== undefined && p.weight !== null && p.weight !== 0 && p.weight !== '0') ? p.weight : '';
             pJumpDate.value = p.jumpdate;
+            const hasMed = Boolean(
+                p.hasMedicalCondition
+                || (p.medicalCondition && String(p.medicalCondition).trim() !== '' && String(p.medicalCondition).trim().toLowerCase() !== 'ninguna')
+            );
+            if (pHasMedical) pHasMedical.checked = hasMed;
+            if (pMedicalContainer) pMedicalContainer.style.display = hasMed ? 'block' : 'none';
+            if (pMedicalCondition) pMedicalCondition.value = hasMed ? (p.medicalCondition || '') : '';
             
             fCortesia.checked = p.cortesia;
             fDiscount.value = formatCurrency(p.discount);
@@ -446,6 +574,7 @@ window.Modules.reservations = {
             fPayMethod.value = p.payMethod || 'Efectivo';
 
             updateFinanceUI(p);
+            updateWeightUI(p.weight, p);
             renderAdicionesUI();
             checkMinor(p.dob);
             updateCapacityUI(p.jumpdate);
@@ -471,32 +600,97 @@ window.Modules.reservations = {
             updateCapacityUI(dateStr);
         };
 
+        function getDraftFlightSelectionsExcluding(excludeIdx, dateStr) {
+            const sels = [];
+            passengers.forEach((px, idx) => {
+                if (idx === excludeIdx) return;
+                if (px && px.jumpdate === dateStr && px.flightId) {
+                    sels.push({
+                        flightId: px.flightId,
+                        aeronave: px.aeronave,
+                        time: px.time,
+                        type: globalJumptype.value
+                    });
+                }
+            });
+            return sels;
+        }
+
+        function applySelectedFlightToCurrentPax(flightId, dateStr) {
+            const p = passengers[activeIndex];
+            if (!p) return;
+            if (!flightId || !dateStr || !window.FlightAvailabilityHelper) {
+                p.flightId = '';
+                p.aeronave = 'Sin asignar';
+                p.vueloNum = '';
+                p.time = 'Por definir';
+                return;
+            }
+            const extraSelections = getDraftFlightSelectionsExcluding(activeIndex, dateStr);
+            const flights = window.FlightAvailabilityHelper.getFlightsForDate(dateStr, {
+                excludePaxId: p.id || null,
+                extraSelections
+            });
+            const found = flights.find(f => f.flightId === flightId);
+            const canAssign = found && (typeof found.canAssignForType === 'function'
+                ? found.canAssignForType(globalJumptype.value)
+                : (!found.isLocked && found.getAvailForType(globalJumptype.value) > 0));
+            if (!canAssign) {
+                p.flightId = '';
+                p.aeronave = 'Sin asignar';
+                p.vueloNum = '';
+                p.time = 'Por definir';
+                return;
+            }
+            p.flightId = found.flightId;
+            p.aeronave = found.matricula;
+            p.vueloNum = found.vueloNum;
+            p.time = found.horaInicio;
+        }
+
         function updateCapacityUI(dateStr) {
             const infoDiv = document.getElementById('p-capacity-info');
             const actionContainer = document.getElementById('p-date-action-container');
             if(actionContainer) actionContainer.innerHTML = '';
+
+            const resetFlightControls = (placeholderText) => {
+                if (pFlightSelect) {
+                    pFlightSelect.innerHTML = `<option value="">${escapeHTML(placeholderText || 'Sin asignar vuelo (Por definir)')}</option>`;
+                    pFlightSelect.value = '';
+                    pFlightSelect.disabled = true;
+                }
+                if (pFlightsBreakdown) {
+                    pFlightsBreakdown.style.display = 'none';
+                    pFlightsBreakdown.innerHTML = '';
+                }
+            };
             
             if (!dateStr) {
                 infoDiv.innerHTML = 'Selecciona una fecha para ver disponibilidad.';
                 infoDiv.style.color = 'var(--text-secondary)';
+                resetFlightControls('Selecciona una fecha primero');
                 return;
             }
 
             window.AppData = window.AppData || {};
             window.AppData.noOpRules = window.AppData.noOpRules || { daysOfWeek: ['1', '2'], specificDates: [] };
             
-            const isBlocked = window.AppData.noOpRules.specificDates.includes(dateStr);
-            const dateObj = new Date(dateStr + "T00:00:00");
-            const dayOfWeek = dateObj.getDay().toString(); // 0=Sun, 1=Mon...
-            const isDayBlocked = window.AppData.noOpRules.daysOfWeek.includes(dayOfWeek);
+            const noOpInfo = window.FlightAvailabilityHelper
+                ? window.FlightAvailabilityHelper.isDateNoOp(dateStr)
+                : {
+                    blocked: window.AppData.noOpRules.specificDates.includes(dateStr)
+                        || window.AppData.noOpRules.daysOfWeek.includes(new Date(dateStr + "T00:00:00").getDay().toString()),
+                    isDayBlocked: window.AppData.noOpRules.daysOfWeek.includes(new Date(dateStr + "T00:00:00").getDay().toString())
+                };
             
             if (actionContainer) {
                 actionContainer.innerHTML = '';
             }
 
-            if (isBlocked || isDayBlocked) {
-                infoDiv.innerHTML = `Esta fecha está configurada como NO Operación. ${isDayBlocked ? '(Por defecto día cerrado)' : ''}`;
+            if (noOpInfo.blocked) {
+                infoDiv.innerHTML = `Esta fecha está configurada como NO Operación. ${noOpInfo.isDayBlocked ? '(Por defecto día cerrado)' : ''}`;
                 infoDiv.style.color = 'var(--brand-danger)';
+                resetFlightControls('Fecha sin operación');
                 return;
             }
             
@@ -504,31 +698,167 @@ window.Modules.reservations = {
             if (cap.total === 0) {
                 infoDiv.innerHTML = `Sin vuelos programados para esta fecha.`;
                 infoDiv.style.color = 'var(--brand-danger)';
-            } else {
-                infoDiv.innerHTML = `
-                    <div style="display:flex; gap:1rem;">
-                        <span style="color: ${cap.availableT > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'}">
-                            <strong>Tándem:</strong> ${cap.availableT}/${cap.totalT}
-                        </span>
-                        <span style="color: ${cap.availableF > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'}">
-                            <strong>Fun Jumper:</strong> ${cap.availableF}/${cap.totalF}
-                        </span>
-                        <span style="color: ${cap.availableC > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'}">
-                            <strong>Copiloto:</strong> ${cap.availableC}/${cap.totalC}
-                        </span>
+                resetFlightControls('Sin vuelos programados');
+                return;
+            }
+
+            infoDiv.innerHTML = `
+                <div style="display:flex; gap:1rem; flex-wrap: wrap;">
+                    <span style="color: ${cap.availableT > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'}">
+                        <strong>Tándem:</strong> ${cap.availableT}/${cap.totalT}
+                    </span>
+                    <span style="color: ${cap.availableF > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'}">
+                        <strong>Fun Jumper:</strong> ${cap.availableF}/${cap.totalF}
+                    </span>
+                    <span style="color: ${cap.availableC > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'}">
+                        <strong>Copiloto:</strong> ${cap.availableC}/${cap.totalC}
+                    </span>
+                </div>
+            `;
+            infoDiv.style.color = 'var(--text-primary)';
+
+            if (!window.FlightAvailabilityHelper || !pFlightSelect) return;
+
+            const currentPax = passengers[activeIndex];
+            const jType = globalJumptype.value;
+            const catLabel = window.FlightAvailabilityHelper.getCategoryLabel(jType);
+            const extraSelections = getDraftFlightSelectionsExcluding(activeIndex, dateStr);
+            const flights = window.FlightAvailabilityHelper.getFlightsForDate(dateStr, {
+                excludePaxId: currentPax ? (currentPax.id || null) : null,
+                extraSelections
+            });
+
+            if (flights.length === 0) {
+                resetFlightControls('Sin vuelos programados');
+                return;
+            }
+
+            // Resolver si el pasajero actual ya tiene un vuelo coincidente en esta fecha
+            const matchedCurrent = currentPax ? window.FlightAvailabilityHelper.findMatchingFlightForPax(currentPax, flights) : null;
+            let selectedFlightId = (matchedCurrent && (typeof matchedCurrent.canAssignForType === 'function'
+                ? matchedCurrent.canAssignForType(jType)
+                : (!matchedCurrent.isLocked && matchedCurrent.getAvailForType(jType) > 0)))
+                ? matchedCurrent.flightId
+                : '';
+
+            if (currentPax && currentPax.flightId && !selectedFlightId) {
+                currentPax.flightId = '';
+                currentPax.aeronave = 'Sin asignar';
+                currentPax.vueloNum = '';
+                currentPax.time = 'Por definir';
+            } else if (currentPax && selectedFlightId && matchedCurrent) {
+                currentPax.flightId = matchedCurrent.flightId;
+                currentPax.aeronave = matchedCurrent.matricula;
+                currentPax.vueloNum = matchedCurrent.vueloNum;
+                currentPax.time = matchedCurrent.horaInicio;
+            }
+
+            let optionsHtml = `<option value="">Sin asignar vuelo (Por definir)</option>`;
+            flights.forEach(f => {
+                const availForType = f.getAvailForType(jType);
+                const capForType = f.getCapForType(jType);
+                const canSelect = typeof f.canAssignForType === 'function'
+                    ? f.canAssignForType(jType)
+                    : (!f.isLocked && availForType > 0);
+                const timeRange = f.horaFin ? `${f.horaInicio} - ${f.horaFin}` : f.horaInicio;
+                const currentTag = f.containsExcludedPax ? ' (Vuelo actual)' : '';
+                const statusTxt = canSelect
+                    ? `${availForType}/${capForType} ${catLabel} disp.${currentTag}`
+                    : (f.isLocked ? 'Vuelo cerrado' : `SIN CUPO ${catLabel}`);
+                const isSelected = selectedFlightId === f.flightId;
+                optionsHtml += `<option value="${escapeHTML(f.flightId)}" ${!canSelect ? 'disabled' : ''} ${isSelected ? 'selected' : ''}>${escapeHTML(f.vueloNum)} (${escapeHTML(timeRange)}) · ${escapeHTML(f.matricula)} — ${escapeHTML(statusTxt)}</option>`;
+            });
+
+            pFlightSelect.disabled = false;
+            pFlightSelect.innerHTML = optionsHtml;
+            pFlightSelect.value = selectedFlightId;
+
+            if (pFlightsBreakdown) {
+                pFlightsBreakdown.style.display = 'block';
+                const cardsHtml = flights.map(f => {
+                    const availForType = f.getAvailForType(jType);
+                    const canSelect = typeof f.canAssignForType === 'function'
+                        ? f.canAssignForType(jType)
+                        : (!f.isLocked && availForType > 0);
+                    const isSelected = selectedFlightId === f.flightId;
+                    const timeRange = f.horaFin ? `${f.horaInicio} - ${f.horaFin}` : f.horaInicio;
+                    const badgeBg = isSelected
+                        ? 'var(--brand-action)'
+                        : (canSelect ? 'rgba(16, 185, 129, 0.14)' : 'rgba(239, 68, 68, 0.14)');
+                    const badgeColor = isSelected
+                        ? '#ffffff'
+                        : (canSelect ? 'var(--brand-success)' : 'var(--brand-danger)');
+                    const badgeText = isSelected
+                        ? 'Seleccionado'
+                        : (canSelect ? `${availForType} disp.` : (f.isLocked ? 'Cerrado' : 'Lleno'));
+                    const borderStyle = isSelected
+                        ? '2px solid var(--brand-action)'
+                        : '1px solid var(--border-color)';
+
+                    return `
+                        <div class="flight-slot-card" data-flight-id="${escapeHTML(f.flightId)}" data-available="${canSelect ? '1' : '0'}"
+                             style="padding: 0.6rem 0.8rem; border-radius: 8px; background: var(--bg-surface); border: ${borderStyle}; display: flex; justify-content: space-between; align-items: center; gap: 0.65rem; flex-wrap: wrap; cursor: ${canSelect ? 'pointer' : 'not-allowed'}; opacity: ${canSelect || isSelected ? '1' : '0.62'};">
+                            <div style="min-width: 170px;">
+                                <div style="font-weight: 700; font-size: 0.86rem; color: var(--text-primary);">
+                                    <i class="fas fa-plane" style="color: var(--brand-action); margin-right: 0.3rem;"></i>
+                                    ${escapeHTML(f.vueloNum)} · ${escapeHTML(timeRange)} · ${escapeHTML(f.matricula)}
+                                </div>
+                                <div style="font-size: 0.76rem; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 0.65rem; flex-wrap: wrap;">
+                                    <span>Tándem: <strong style="color: ${f.availTan > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'};">${f.availTan}/${f.capTan}</strong></span>
+                                    <span>Fun: <strong style="color: ${f.availFun > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'};">${f.availFun}/${f.capFun}</strong></span>
+                                    <span>Cop: <strong style="color: ${f.availCop > 0 ? 'var(--brand-success)' : 'var(--brand-danger)'};">${f.availCop}/${f.capCop}</strong></span>
+                                </div>
+                            </div>
+                            <span style="font-size: 0.75rem; font-weight: 700; padding: 0.22rem 0.6rem; border-radius: 999px; background: ${badgeBg}; color: ${badgeColor}; white-space: nowrap;">
+                                ${escapeHTML(badgeText)}
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+
+                pFlightsBreakdown.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <strong style="font-size: 0.85rem; color: var(--text-primary);">
+                            <i class="fas fa-plane-departure" style="color: var(--brand-action);"></i> Desglose de Vuelos del Día (${flights.length})
+                        </strong>
+                        <span style="font-size: 0.76rem; color: var(--text-secondary);">Haz clic en un vuelo disponible o usa el selector superior</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        ${cardsHtml}
                     </div>
                 `;
-                infoDiv.style.color = 'var(--text-primary)';
+
+                pFlightsBreakdown.querySelectorAll('.flight-slot-card[data-available="1"]').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const fid = card.getAttribute('data-flight-id');
+                        if (!fid) return;
+                        pFlightSelect.value = fid;
+                        applySelectedFlightToCurrentPax(fid, dateStr);
+                        updateCapacityUI(dateStr);
+                    });
+                });
             }
         }
         
         pJumpDate.addEventListener('change', (e) => {
-            updateCapacityUI(e.target.value);
-            // Save it back to current passenger immediately
             if (passengers[activeIndex]) {
+                if (passengers[activeIndex].jumpdate !== e.target.value) {
+                    passengers[activeIndex].flightId = '';
+                    passengers[activeIndex].aeronave = 'Sin asignar';
+                    passengers[activeIndex].vueloNum = '';
+                    passengers[activeIndex].time = 'Por definir';
+                }
                 passengers[activeIndex].jumpdate = e.target.value;
             }
+            updateCapacityUI(e.target.value);
         });
+
+        if (pFlightSelect) {
+            pFlightSelect.addEventListener('change', (e) => {
+                applySelectedFlightToCurrentPax(e.target.value, pJumpDate.value);
+                updateCapacityUI(pJumpDate.value);
+            });
+        }
 
         const btnSearch = document.getElementById('btn-p-search');
         const searchInput = document.getElementById('p-search-filter');
@@ -568,6 +898,18 @@ window.Modules.reservations = {
                 pPhone.value = found.phone || pPhone.value;
                 pEmail.value = found.email || pEmail.value;
                 pDob.value = found.dob || pDob.value;
+                if (pWeight && found.weight !== undefined && found.weight !== null && found.weight > 0) {
+                    pWeight.value = found.weight;
+                    passengers[activeIndex].weight = found.weight;
+                }
+                const foundHasMed = Boolean(found.medicalCondition && String(found.medicalCondition).trim() !== '' && String(found.medicalCondition).trim().toLowerCase() !== 'ninguna');
+                if (pHasMedical) pHasMedical.checked = foundHasMed;
+                if (pMedicalContainer) pMedicalContainer.style.display = foundHasMed ? 'block' : 'none';
+                if (pMedicalCondition) pMedicalCondition.value = foundHasMed ? found.medicalCondition : '';
+                if (passengers[activeIndex]) {
+                    passengers[activeIndex].hasMedicalCondition = foundHasMed;
+                    passengers[activeIndex].medicalCondition = foundHasMed ? found.medicalCondition : '';
+                }
                 
                 if (found.date && found.date !== 'Por definir') {
                     pJumpDate.value = found.date;
@@ -607,8 +949,11 @@ window.Modules.reservations = {
                     passengers[activeIndex].phone = pPhone.value;
                     passengers[activeIndex].email = pEmail.value;
                     passengers[activeIndex].dob = pDob.value;
+                    if (pWeight) passengers[activeIndex].weight = pWeight.value;
                 }
                 
+                updateWeightUI(pWeight ? pWeight.value : '', passengers[activeIndex]);
+                updateCapacityUI(pJumpDate.value);
                 renderAdicionesUI();
                 calculateGlobal();
                 alert('¡Pasajero encontrado! Datos e información financiera sincronizados.');
@@ -649,8 +994,9 @@ window.Modules.reservations = {
             saveCurrentPassenger(); // Make sure current active is saved before calculating
             let total = 0;
             let totalYaPagado = 0;
+            let totalKgExtraCharge = 0;
             
-            passengers.forEach(p => {
+            passengers.forEach((p, idx) => {
                 let pTotal = 0;
                 if (p.cortesia) {
                     pTotal += p.manualPrice;
@@ -672,6 +1018,13 @@ window.Modules.reservations = {
                         }
                     }
                 }
+
+                // Recargo por peso extra (> 85 kg)
+                const wt = (idx === activeIndex)
+                    ? updateWeightUI(p.weight, p)
+                    : getExtraWeightDetails(p.weight, p);
+                pTotal += wt.charge;
+                totalKgExtraCharge += wt.charge;
                 
                 pTotal -= p.discount;
                 if(pTotal < 0) pTotal = 0;
@@ -679,6 +1032,11 @@ window.Modules.reservations = {
                 total += pTotal;
                 totalYaPagado += (p.totalPaid || 0);
             });
+
+            if (dKgExtraRow && dKgExtra) {
+                dKgExtraRow.style.display = totalKgExtraCharge > 0 ? 'flex' : 'none';
+                dKgExtra.textContent = '+$' + formatCurrency(totalKgExtraCharge);
+            }
 
             let abonoNuevo = parseCurrency(globalAbono.value);
             if (globalFullPay.value === 'si') {
@@ -756,6 +1114,24 @@ window.Modules.reservations = {
         });
 
         pDob.addEventListener('change', (e) => checkMinor(e.target.value));
+        if (pWeight) {
+            pWeight.addEventListener('input', calculateGlobal);
+            pWeight.addEventListener('change', calculateGlobal);
+        }
+        if (pHasMedical) {
+            pHasMedical.addEventListener('change', () => {
+                if (pMedicalContainer) {
+                    pMedicalContainer.style.display = pHasMedical.checked ? 'block' : 'none';
+                }
+                if (!pHasMedical.checked && pMedicalCondition) {
+                    pMedicalCondition.value = '';
+                }
+                saveCurrentPassenger();
+            });
+        }
+        if (pMedicalCondition) {
+            pMedicalCondition.addEventListener('input', () => saveCurrentPassenger());
+        }
 
         // When Jump Type or Cortesia changes, we might need to update the base price UI
         globalJumptype.addEventListener('change', (e) => {
@@ -773,6 +1149,7 @@ window.Modules.reservations = {
             saveCurrentPassenger();
             renderAdicionesUI(); // Update UI list first
             updateFinanceUI(passengers[activeIndex]);
+            updateCapacityUI(pJumpDate.value);
             calculateGlobal();
         });
 
@@ -890,6 +1267,40 @@ window.Modules.reservations = {
                     }
                 }
             }
+
+            // Validar disponibilidad por vuelo específico para los pasajeros con vuelo programado
+            if (window.FlightAvailabilityHelper) {
+                const jType = globalJumptype.value;
+                const requestedByFlight = {};
+                for (let i = 0; i < passengers.length; i++) {
+                    const p = passengers[i];
+                    if (p.jumpdate && p.flightId) {
+                        const key = `${p.jumpdate}__${p.flightId}`;
+                        if (!requestedByFlight[key]) {
+                            requestedByFlight[key] = { dateStr: p.jumpdate, flightId: p.flightId, paxIds: [], count: 0 };
+                        }
+                        requestedByFlight[key].count += 1;
+                        if (p.id) requestedByFlight[key].paxIds.push(p.id);
+                    }
+                }
+                for (const entry of Object.values(requestedByFlight)) {
+                    const flights = window.FlightAvailabilityHelper.getFlightsForDate(entry.dateStr, {
+                        excludePaxId: entry.paxIds.length === 1 ? entry.paxIds[0] : null
+                    });
+                    const targetFlight = flights.find(f => f.flightId === entry.flightId);
+                    if (!targetFlight || targetFlight.isLocked) {
+                        alert(`El vuelo seleccionado para la fecha ${entry.dateStr} ya no está disponible.`);
+                        return;
+                    }
+                    const avail = typeof targetFlight.getAssignableAvailForType === 'function'
+                        ? targetFlight.getAssignableAvailForType(jType)
+                        : targetFlight.getAvailForType(jType);
+                    if (entry.count > avail) {
+                        alert(`¡Error de Capacidad en Vuelo!\nEl ${targetFlight.vueloNum} (${targetFlight.horaInicio} · ${targetFlight.matricula}) solo tiene ${avail} cupo(s) disponible(s) para ${jType}, y estás asignando ${entry.count}.`);
+                        return;
+                    }
+                }
+            }
             
             let hasErrors = false;
             let finalPax = [];
@@ -902,6 +1313,18 @@ window.Modules.reservations = {
                 
                 if(!p.name || !p.doc || !p.jumpdate || !p.phone || !p.email || !p.dob) {
                     alert(`Por favor completa todos los datos personales (Nombre, Documento, Teléfono, Correo, Fecha de Nacimiento y Fecha de Salto) para el Pasajero ${i+1}.`);
+                    hasErrors = true;
+                    break;
+                }
+
+                if (p.weight !== '' && p.weight !== undefined && p.weight !== null && parseFloat(p.weight) < 0) {
+                    alert(`El peso del Pasajero ${i+1} no puede ser un valor negativo.`);
+                    hasErrors = true;
+                    break;
+                }
+
+                if (p.hasMedicalCondition && !String(p.medicalCondition || '').trim()) {
+                    alert(`Por favor ingresa la condición médica reportada para el Pasajero ${i+1}.`);
                     hasErrors = true;
                     break;
                 }
@@ -938,6 +1361,8 @@ window.Modules.reservations = {
                         }
                     }
                 }
+                const wt = getExtraWeightDetails(p.weight, p);
+                pTotal += wt.charge;
                 pTotal -= p.discount || 0;
                 if (pTotal < 0) pTotal = 0;
                 
@@ -951,6 +1376,13 @@ window.Modules.reservations = {
                     ? p.tariffSnapshot
                     : (window.TariffGuard ? window.TariffGuard.buildTariffSnapshot() : null);
                 
+                const hasSelectedFlight = Boolean(p.flightId && p.aeronave && p.aeronave !== 'Sin asignar');
+                const dateChanged = Boolean(p.date && p.date !== p.jumpdate);
+                const resolvedFlightId = hasSelectedFlight ? p.flightId : (dateChanged ? '' : (p.flightId || ''));
+                const resolvedAeronave = hasSelectedFlight ? p.aeronave : (dateChanged ? 'Sin asignar' : (p.aeronave || 'Sin asignar'));
+                const resolvedVueloNum = hasSelectedFlight ? (p.vueloNum || '') : (dateChanged ? '' : (p.vueloNum || ''));
+                const resolvedTime = hasSelectedFlight ? (p.time || 'Por definir') : (dateChanged ? 'Por definir' : (p.time || 'Por definir'));
+
                 finalPax.push({
                     ...p, // preserve all existing properties like weight, paxStatus, etc
                     id: paxId,
@@ -963,22 +1395,27 @@ window.Modules.reservations = {
                     email: p.email,
                     dob: p.dob,
                     date: p.jumpdate, // Ensure ISO format YYYY-MM-DD
-                    time: p.time || 'Por definir', // Default time
+                    time: resolvedTime,
+                    flightId: resolvedFlightId,
                     type: globalJumptype.value,
                     adiciones: p.adiciones || {},
                     cams: adics.join(', ') || 'Sin cámaras',
-                    weight: p.weight || 0, // Assigned in Check-in
-                    instructor: (p.date && p.date !== p.jumpdate) ? 'Sin asignar' : (p.instructor || 'Sin asignar'),
-                    camInstructor: (p.date && p.date !== p.jumpdate) ? 'Sin asignar' : (p.camInstructor || 'Sin asignar'),
-                    aeronave: (p.date && p.date !== p.jumpdate) ? 'Sin asignar' : (p.aeronave || 'Sin asignar'),
-                    vueloNum: (p.date && p.date !== p.jumpdate) ? '' : (p.vueloNum || ''),
-                    paxStatus: (p.date && p.date !== p.jumpdate) ? 'Pendiente Check-in' : (p.paxStatus || 'Pendiente Check-in'),
-                    flightStatus: (p.date && p.date !== p.jumpdate) ? 'Programado' : (p.flightStatus || 'A tiempo / On-Time'),
+                    weight: wt.weight,
+                    medicalCondition: p.hasMedicalCondition ? String(p.medicalCondition || '').trim() : 'Ninguna',
+                    instructor: dateChanged ? 'Sin asignar' : (p.instructor || 'Sin asignar'),
+                    camInstructor: dateChanged ? 'Sin asignar' : (p.camInstructor || 'Sin asignar'),
+                    aeronave: resolvedAeronave,
+                    vueloNum: resolvedVueloNum,
+                    paxStatus: dateChanged ? 'Pendiente Check-in' : (p.paxStatus || 'Pendiente Check-in'),
+                    flightStatus: (hasSelectedFlight || dateChanged) ? 'Programado' : (p.flightStatus || 'A tiempo / On-Time'),
                     waiverSigned: p.waiverSigned || false,
                     status: p.status || 'En Espera', // General status
                     financiera: {
                         ...(p.financiera || {}),
                         manualPrice: p.manualPrice,
+                        kgExtra: wt.extraKg,
+                        kgExtraRate: wt.rate,
+                        kgExtraCharge: wt.charge,
                         totalValue: pTotal,
                         cortesiaObs: p.cortesiaObs || '',
                         discount: p.discount,

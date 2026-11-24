@@ -469,6 +469,103 @@ window.Modules.manifest = {
 
         renderPoncheraUI();
 
+        // ==========================================
+        // Helpers de Autorización de Administrador (Waiver Pendiente)
+        // ==========================================
+        function getCurrentSessionUser() {
+            try {
+                const raw = sessionStorage.getItem('fraterno_user');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function isAdminRoleString(roleStr) {
+            const r = String(roleStr || '').trim().toLowerCase();
+            return r === 'admin' || r === 'administrador' || r === 'superadmin' || r.includes('admin');
+        }
+
+        function isCurrentUserAdmin() {
+            const user = getCurrentSessionUser();
+            if (user) {
+                const uname = String(user.username || '').trim().toLowerCase();
+                if (uname === 'admin01' || user.id === 'usr_admin') return true;
+                if (user.role !== undefined && user.role !== null && String(user.role).trim() !== '') {
+                    return isAdminRoleString(user.role);
+                }
+            }
+            return (sessionStorage.getItem('fraterno_role') || '') === 'admin';
+        }
+
+        function findAuthorizingAdminByPassword(pwd) {
+            if (!pwd) return null;
+            const users = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
+            const admins = users.filter(u => u && (
+                isAdminRoleString(u.role)
+                || String(u.username || '').trim().toLowerCase() === 'admin01'
+                || u.id === 'usr_admin'
+            ));
+            const matched = admins.find(u => u.password !== undefined && String(u.password) === String(pwd));
+            if (matched) return matched;
+            if (admins.length === 0 && String(pwd) === '01Fraterno*') {
+                return { id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador' };
+            }
+            return null;
+        }
+
+        function needsWaiverAuthorization(p) {
+            return Boolean(p && !p.waiverSigned && !p.waiverAdminAuthorized);
+        }
+
+        function markPassengersWaiverAuthorized(paxList, adminUser) {
+            const authBy = (adminUser && (adminUser.name || adminUser.username)) || 'Administrador';
+            const authAt = new Date().toISOString();
+            paxList.forEach(p => {
+                p.waiverAdminAuthorized = true;
+                p.waiverAuthorizedBy = authBy;
+                p.waiverAuthorizedAt = authAt;
+            });
+            if (window.saveAppData) window.saveAppData();
+        }
+
+        async function authorizePendingWaiverPassengers(pendingPax) {
+            if (!Array.isArray(pendingPax) || pendingPax.length === 0) return true;
+
+            if (isCurrentUserAdmin()) {
+                markPassengersWaiverAuthorized(pendingPax, getCurrentSessionUser());
+                return true;
+            }
+
+            const names = pendingPax.map(p => p.name).join(', ');
+            const promptMsg = `Faltan pasajeros por firmar (Waiver):\n${names}\n\nÚnicamente un Administrador puede autorizar este cambio de estado. Ingresa la contraseña de algún Administrador para autorizar:`;
+            const enteredPwd = window.showPrompt
+                ? await window.showPrompt(promptMsg, {
+                    title: 'Autorización de Administrador (Waiver Pendiente)',
+                    inputType: 'password',
+                    placeholder: 'Contraseña de Administrador...',
+                    confirmText: 'Autorizar Cambio',
+                    cancelText: 'Cancelar'
+                })
+                : prompt(promptMsg);
+
+            if (enteredPwd === null) return false;
+
+            const authAdmin = findAuthorizingAdminByPassword(enteredPwd);
+            if (!authAdmin) {
+                const errMsg = 'Contraseña de Administrador incorrecta. No se autorizó el cambio de estado.';
+                if (window.showAlert) {
+                    await window.showAlert(errMsg, { title: 'Autorización Denegada', type: 'danger' });
+                } else {
+                    alert(errMsg);
+                }
+                return false;
+            }
+
+            markPassengersWaiverAuthorized(pendingPax, authAdmin);
+            return true;
+        }
+
         function renderBoard() {
             board.innerHTML = '';
             
@@ -544,7 +641,11 @@ window.Modules.manifest = {
                     const w = parseFloat(p.weight) || 0;
                     totalWeight += w;
 
-                    const waiverHtml = !p.waiverSigned ? `<span style="color: var(--brand-danger); margin-left: 5px; font-size: 1.1rem;" title="Sin firma (Waiver)"><i class="fas fa-exclamation-triangle"></i></span>` : '';
+                    const waiverHtml = !p.waiverSigned
+                        ? (p.waiverAdminAuthorized
+                            ? `<span style="color: var(--brand-success); margin-left: 5px; font-size: 0.78rem; font-weight: 700;" title="Waiver pendiente - Autorizado por Administrador (${escapeHTML(p.waiverAuthorizedBy || 'Admin')})"><i class="fas fa-user-shield"></i> Autorizado</span>`
+                            : `<span style="color: var(--brand-danger); margin-left: 5px; font-size: 1.1rem;" title="Sin firma (Waiver) - Requiere autorización de Administrador"><i class="fas fa-exclamation-triangle"></i></span>`)
+                        : '';
                     const medHtml = (p.medicalCondition && p.medicalCondition.trim() !== '' && p.medicalCondition !== 'Ninguna') ? `<span style="color: var(--brand-danger); margin-left: 5px; font-size: 1.1rem;" title="Condición Médica: ${escapeHTML(p.medicalCondition)}"><i class="fas fa-heartbeat"></i></span>` : '';
                     const minorHtml = isPaxMinor(p) ? `<span style="color: #F97316; margin-left: 5px; font-size: 1.1rem;" title="Menor de Edad"><i class="fas fa-child"></i></span>` : '';
 
@@ -614,22 +715,27 @@ window.Modules.manifest = {
                 const selectStatus = card.querySelector('.flight-status-select');
                 const currentStatus = vuelo.status;
 
-                selectStatus.addEventListener('change', (e) => {
+                selectStatus.addEventListener('change', async (e) => {
                     const newState = e.target.value;
-                    const role = sessionStorage.getItem('fraterno_role') || 'ventas';
-                    
-                    const unsignedPax = vuelo.passengers.filter(p => !p.waiverSigned);
-                    if (unsignedPax.length > 0) {
-                        const names = unsignedPax.map(p => p.name).join(', ');
-                        alert(`No se puede cambiar el estado del vuelo.\nFaltan pasajeros por firmar (Waiver):\n\n${names}`);
-                        e.target.value = currentStatus;
-                        return;
-                    }
-                    
-                    if (currentStatus === 'Aterrizó' && role !== 'admin') {
+                    const isAdmin = isCurrentUserAdmin();
+
+                    if (currentStatus === 'Aterrizó' && !isAdmin) {
                         alert('Acceso Denegado: Solo un administrador puede cambiar el estado de un vuelo que ya ha aterrizado.');
                         e.target.value = currentStatus;
                         return;
+                    }
+
+                    // Verificar pasajeros sin firma (Waiver) que aún no tengan autorización previa de administrador
+                    const unsignedPendingPax = vuelo.passengers.filter(needsWaiverAuthorization);
+                    if (unsignedPendingPax.length > 0) {
+                        if (!isAdmin) {
+                            e.target.value = currentStatus; // Mantener estado visual previo mientras se valida contraseña
+                        }
+                        const authorized = await authorizePendingWaiverPassengers(unsignedPendingPax);
+                        if (!authorized) {
+                            e.target.value = currentStatus;
+                            return;
+                        }
                     }
 
                     if (newState === 'En El Aire') {
@@ -727,8 +833,12 @@ window.Modules.manifest = {
                 
                 let waiverAlert = '';
                 if (!p.waiverSigned) {
-                    hasMissingWaiver = true;
-                    waiverAlert = `<div style="font-size: 0.8rem; color: var(--brand-danger); font-weight: bold; margin-top: 4px;"><i class="fas fa-exclamation-triangle"></i> Faltan Firmas (Waiver)</div>`;
+                    if (p.waiverAdminAuthorized) {
+                        waiverAlert = `<div style="font-size: 0.8rem; color: var(--brand-success); font-weight: bold; margin-top: 4px;"><i class="fas fa-user-shield"></i> Waiver pendiente — Autorizado por ${escapeHTML(p.waiverAuthorizedBy || 'Administrador')}</div>`;
+                    } else {
+                        hasMissingWaiver = true;
+                        waiverAlert = `<div style="font-size: 0.8rem; color: var(--brand-danger); font-weight: bold; margin-top: 4px;"><i class="fas fa-exclamation-triangle"></i> Faltan Firmas (Waiver) — Requiere autorización de Administrador</div>`;
+                    }
                 }
                 
                 item.innerHTML = `
@@ -745,15 +855,14 @@ window.Modules.manifest = {
             });
 
             const btnConfirm = document.getElementById('btn-confirm-chk');
+            btnConfirm.disabled = false;
+            btnConfirm.style.opacity = '1';
+            btnConfirm.style.cursor = 'pointer';
             if (hasMissingWaiver) {
-                btnConfirm.disabled = true;
-                btnConfirm.style.opacity = '0.5';
-                btnConfirm.style.cursor = 'not-allowed';
-                btnConfirm.innerHTML = '<i class="fas fa-ban"></i> Faltan Firmas';
+                btnConfirm.innerHTML = isCurrentUserAdmin()
+                    ? '<i class="fas fa-user-shield"></i> Autorizar y Confirmar Despegue'
+                    : '<i class="fas fa-lock"></i> Autorizar con Admin y Despegar';
             } else {
-                btnConfirm.disabled = false;
-                btnConfirm.style.opacity = '1';
-                btnConfirm.style.cursor = 'pointer';
                 btnConfirm.innerHTML = '<i class="fas fa-plane-departure"></i> Confirmar Despegue';
             }
         }
@@ -805,10 +914,17 @@ window.Modules.manifest = {
         document.getElementById('btn-cancel-chk').addEventListener('click', closeChecklistModal);
         document.getElementById('btn-cancel-chk-top').addEventListener('click', closeChecklistModal);
 
-        document.getElementById('btn-confirm-chk').addEventListener('click', () => {
+        document.getElementById('btn-confirm-chk').addEventListener('click', async () => {
             if (!pendingFlight) return;
             
             const checkedIds = Array.from(list.querySelectorAll('.chk-pax-item:checked')).map(cb => cb.value);
+
+            // Si algún pasajero marcado (ej. agregado manualmente en el modal) aún requiere autorización por Waiver pendiente
+            const checkedPendingWaiver = currentModalPax.filter(p => checkedIds.includes(p.id) && needsWaiverAuthorization(p));
+            if (checkedPendingWaiver.length > 0) {
+                const authorized = await authorizePendingWaiverPassengers(checkedPendingWaiver);
+                if (!authorized) return;
+            }
             
             // Remove unchecked passengers
             currentModalPax.forEach(p => {

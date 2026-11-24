@@ -3018,3 +3018,254 @@ window.PasswordManager = {
         return true;
     }
 };
+
+// =====================================
+// Helper Compartido de Disponibilidad de Vuelos y Recargo por Peso (FlightAvailabilityHelper)
+// Usado por Registro de Salto (reservations.js) y Reservas -> Editar Reserva (booking.js)
+// =====================================
+window.FlightAvailabilityHelper = {
+    EXTRA_WEIGHT_THRESHOLD_KG: 85,
+
+    normalizeJumpCategory(jumpType) {
+        const t = String(jumpType || '').toLowerCase();
+        if (t.includes('copiloto')) return 'cop';
+        if (t.includes('fun') || t.includes('deport')) return 'fun';
+        return 'tan';
+    },
+
+    getCategoryLabel(catOrType) {
+        const cat = (catOrType === 'tan' || catOrType === 'fun' || catOrType === 'cop')
+            ? catOrType
+            : this.normalizeJumpCategory(catOrType);
+        if (cat === 'cop') return 'Copiloto';
+        if (cat === 'fun') return 'Fun Jumper';
+        return 'Tándem';
+    },
+
+    isCancelledPax(p) {
+        if (!p) return true;
+        return Boolean(
+            (p.paxStatus && String(p.paxStatus).includes('Cancelado')) ||
+            (p.flightStatus && String(p.flightStatus).includes('Cancelado'))
+        );
+    },
+
+    isLockedFlightStatus(status) {
+        return ['En El Aire', 'Paracaidistas en el aire', 'Aterrizó', 'Completado'].includes(String(status || ''));
+    },
+
+    isDateNoOp(dateStrYMD) {
+        if (!dateStrYMD) return { blocked: false, isDayBlocked: false, isSpecificBlocked: false };
+        const noOp = (window.AppData && window.AppData.noOpRules) || { daysOfWeek: ['1', '2'], specificDates: [], exceptions: [] };
+        const specific = Array.isArray(noOp.specificDates) ? noOp.specificDates : [];
+        const exceptions = Array.isArray(noOp.exceptions) ? noOp.exceptions : [];
+        const daysOfWeek = Array.isArray(noOp.daysOfWeek) ? noOp.daysOfWeek : ['1', '2'];
+
+        if (exceptions.includes(dateStrYMD)) {
+            return { blocked: false, isDayBlocked: false, isSpecificBlocked: false };
+        }
+        const isSpecificBlocked = specific.includes(dateStrYMD);
+        const dateObj = new Date(dateStrYMD + 'T00:00:00');
+        const dayOfWeek = String(dateObj.getDay());
+        const isDayBlocked = daysOfWeek.includes(dayOfWeek);
+        return { blocked: isSpecificBlocked || isDayBlocked, isDayBlocked, isSpecificBlocked };
+    },
+
+    getFlightsForDate(dateStrYMD, options = {}) {
+        if (!dateStrYMD) return [];
+        const { excludePaxId = null, extraSelections = [] } = options;
+
+        const aeronaves = (window.AppData && Array.isArray(window.AppData.aeronaves)) ? window.AppData.aeronaves : [];
+        const asignaciones = (window.AppData && Array.isArray(window.AppData.asignacionFlota)) ? window.AppData.asignacionFlota : [];
+        const passengers = (window.AppData && Array.isArray(window.AppData.passengers)) ? window.AppData.passengers : [];
+
+        const planeById = {};
+        aeronaves.forEach(a => {
+            if (a && a.id) planeById[a.id] = a;
+        });
+
+        // Filtrar vuelos activos del día agrupados por aeronave para asignar número de vuelo (Vuelo 1, Vuelo 2...)
+        const dayAsgs = asignaciones.filter(asg => asg && asg.fecha === dateStrYMD && asg.estado !== 'Cancelado');
+        const byPlane = {};
+        dayAsgs.forEach(asg => {
+            if (!byPlane[asg.id_aeronave]) byPlane[asg.id_aeronave] = [];
+            byPlane[asg.id_aeronave].push(asg);
+        });
+
+        const normTime = (t) => {
+            const s = String(t || '').trim().split(' ')[0];
+            const m = s.match(/^(\d{1,2}):(\d{2})/);
+            return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s;
+        };
+
+        const results = [];
+        Object.keys(byPlane).forEach(planeId => {
+            const plane = planeById[planeId];
+            if (!plane) return;
+            const list = byPlane[planeId].slice().sort((a, b) => normTime(a.horaInicio).localeCompare(normTime(b.horaInicio)));
+            list.forEach((asg, idx) => {
+                const capTan = parseInt(plane.capTan || 0, 10);
+                const capFun = parseInt(plane.capFun || 0, 10);
+                const capCop = parseInt(plane.capCop || 0, 10);
+                const asgTimeNorm = normTime(asg.horaInicio);
+                const asgVueloNum = `Vuelo ${idx + 1}`;
+
+                // Ocupación REAL del vuelo (incluye todos los pasajeros activos en este vuelo)
+                let usedTan = 0;
+                let usedFun = 0;
+                let usedCop = 0;
+                let containsExcludedPax = false;
+                let excludedPaxCat = null;
+                let isLocked = this.isLockedFlightStatus(asg.estado);
+
+                passengers.forEach(p => {
+                    if (!p || this.isCancelledPax(p)) return;
+                    if (p.date !== dateStrYMD) return;
+                    const matches = (p.flightId && p.flightId === asg.id)
+                        || (p.aeronave === plane.matricula && asgTimeNorm && normTime(p.time) === asgTimeNorm)
+                        || (!p.flightId && p.aeronave === plane.matricula && String(p.vueloNum || '').trim() === asgVueloNum);
+                    if (!matches) return;
+
+                    if (this.isLockedFlightStatus(p.flightStatus)) {
+                        isLocked = true;
+                    }
+
+                    const cat = this.normalizeJumpCategory(p.type);
+                    if (excludePaxId && p.id === excludePaxId) {
+                        containsExcludedPax = true;
+                        excludedPaxCat = cat;
+                    }
+
+                    if (cat === 'cop') usedCop += 1;
+                    else if (cat === 'fun') usedFun += 1;
+                    else usedTan += 1;
+                });
+
+                // Contar selecciones en borrador (ej. otros pasajeros del mismo grupo en Registro de Salto)
+                (extraSelections || []).forEach(sel => {
+                    if (!sel) return;
+                    const matchesSel = (sel.flightId && sel.flightId === asg.id)
+                        || (sel.aeronave === plane.matricula && asgTimeNorm && normTime(sel.time) === asgTimeNorm);
+                    if (!matchesSel) return;
+                    const cat = this.normalizeJumpCategory(sel.type);
+                    if (cat === 'cop') usedCop += 1;
+                    else if (cat === 'fun') usedFun += 1;
+                    else usedTan += 1;
+                });
+
+                const availTan = Math.max(0, capTan - usedTan);
+                const availFun = Math.max(0, capFun - usedFun);
+                const availCop = Math.max(0, capCop - usedCop);
+                const totalCap = capTan + capFun + capCop;
+                const totalUsed = usedTan + usedFun + usedCop;
+                const totalAvail = availTan + availFun + availCop;
+
+                const descriptor = {
+                    flightId: asg.id,
+                    fecha: asg.fecha,
+                    idAeronave: plane.id,
+                    matricula: plane.matricula,
+                    modelo: plane.modelo || '',
+                    vueloNum: asgVueloNum,
+                    horaInicio: asg.horaInicio || '',
+                    horaFin: asg.horaFin || '',
+                    capTan, usedTan, availTan,
+                    capFun, usedFun, availFun,
+                    capCop, usedCop, availCop,
+                    totalCap, totalUsed, totalAvail,
+                    isLocked,
+                    containsExcludedPax,
+                    getAvailForType: (jumpType) => {
+                        const cat = this.normalizeJumpCategory(jumpType);
+                        if (cat === 'cop') return availCop;
+                        if (cat === 'fun') return availFun;
+                        return availTan;
+                    },
+                    getAssignableAvailForType: (jumpType) => {
+                        const cat = this.normalizeJumpCategory(jumpType);
+                        const baseAvail = cat === 'cop' ? availCop : (cat === 'fun' ? availFun : availTan);
+                        return (containsExcludedPax && excludedPaxCat === cat) ? baseAvail + 1 : baseAvail;
+                    },
+                    canAssignForType: (jumpType) => {
+                        if (isLocked) return false;
+                        const cat = this.normalizeJumpCategory(jumpType);
+                        if (containsExcludedPax && excludedPaxCat === cat) return true;
+                        const baseAvail = cat === 'cop' ? availCop : (cat === 'fun' ? availFun : availTan);
+                        return baseAvail > 0;
+                    },
+                    getCapForType: (jumpType) => {
+                        const cat = this.normalizeJumpCategory(jumpType);
+                        if (cat === 'cop') return capCop;
+                        if (cat === 'fun') return capFun;
+                        return capTan;
+                    },
+                    getUsedForType: (jumpType) => {
+                        const cat = this.normalizeJumpCategory(jumpType);
+                        if (cat === 'cop') return usedCop;
+                        if (cat === 'fun') return usedFun;
+                        return usedTan;
+                    }
+                };
+                results.push(descriptor);
+            });
+        });
+
+        results.sort((a, b) => {
+            const timeCmp = normTime(a.horaInicio).localeCompare(normTime(b.horaInicio));
+            if (timeCmp !== 0) return timeCmp;
+            return String(a.matricula || '').localeCompare(String(b.matricula || ''));
+        });
+
+        return results;
+    },
+
+    findMatchingFlightForPax(pax, flights) {
+        if (!pax || !Array.isArray(flights) || flights.length === 0) return null;
+        if (pax.flightId) {
+            const byId = flights.find(f => f.flightId === pax.flightId);
+            if (byId) return byId;
+        }
+        const normTime = (t) => {
+            const s = String(t || '').trim().split(' ')[0];
+            const m = s.match(/^(\d{1,2}):(\d{2})/);
+            return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s;
+        };
+        if (pax.aeronave && pax.aeronave !== 'Sin asignar') {
+            if (pax.time && pax.time !== 'Por definir') {
+                const paxT = normTime(pax.time);
+                const byTime = flights.find(f => f.matricula === pax.aeronave && normTime(f.horaInicio) === paxT);
+                if (byTime) return byTime;
+            }
+            if (pax.vueloNum) {
+                const byNum = flights.find(f => f.matricula === pax.aeronave && f.vueloNum === String(pax.vueloNum).trim());
+                if (byNum) return byNum;
+            }
+        }
+        return null;
+    },
+
+    getKgExtraRate(record = null) {
+        if (window.TariffGuard) {
+            const rate = window.TariffGuard.getPriceForRecord(record, 'Valor KG Extra');
+            if (rate > 0) return rate;
+        }
+        const maestro = (window.AppData && Array.isArray(window.AppData.maestroValores)) ? window.AppData.maestroValores : [];
+        const mItem = maestro.find(m => m.name === 'Valor KG Extra');
+        if (mItem && mItem.price !== undefined) {
+            const parsed = parseInt(String(mItem.price).replace(/\D/g, ''), 10) || 0;
+            if (parsed > 0) return parsed;
+        }
+        return 5000;
+    },
+
+    getPassengerWeightSurcharge(weightVal, record = null) {
+        const w = parseFloat(weightVal);
+        const validWeight = (!isNaN(w) && w > 0) ? w : 0;
+        const extraKg = validWeight > this.EXTRA_WEIGHT_THRESHOLD_KG
+            ? Number((validWeight - this.EXTRA_WEIGHT_THRESHOLD_KG).toFixed(2))
+            : 0;
+        const rate = this.getKgExtraRate(record);
+        const charge = extraKg > 0 ? Math.round(extraKg * rate) : 0;
+        return { weight: validWeight, extraKg, rate, charge };
+    }
+};

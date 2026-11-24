@@ -87,39 +87,39 @@ window.Modules.booking = {
             </div>
 
             <!-- Modal Editar Reserva -->
-            <div id="modal-edit-res" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-                <div class="modal-content" style="background: var(--bg-surface); padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
-                    <h3 style="margin-top: 0; color: var(--brand-blue); margin-bottom: 1.5rem;"><i class="fas fa-edit"></i> Editar Reserva</h3>
+            <div id="modal-edit-res" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box;">
+                <div class="modal-content" style="background: var(--bg-surface); padding: 1.75rem 2rem; border-radius: 14px; width: 100%; max-width: 660px; box-shadow: 0 18px 45px rgba(0,0,0,0.28); max-height: 92vh; overflow-y: auto; box-sizing: border-box;">
+                    <h3 style="margin-top: 0; color: var(--brand-blue); margin-bottom: 1.25rem;"><i class="fas fa-edit"></i> Editar Reserva</h3>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
                             <label>Nombre(s) y Apellido(s)</label>
                             <input type="text" id="edit-res-name" class="form-control" disabled style="background: var(--bg-surface-hover); font-weight: bold;">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="margin-bottom: 0;">
                             <label>Documento de Identidad</label>
                             <input type="text" id="edit-res-doc" class="form-control" disabled style="background: var(--bg-surface-hover); font-weight: bold;">
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
                             <label>Teléfono</label>
                             <input type="text" id="edit-res-phone" class="form-control" disabled style="background: var(--bg-surface-hover); font-weight: bold;">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="margin-bottom: 0;">
                             <label>Correo Electrónico</label>
                             <input type="email" id="edit-res-email" class="form-control" disabled style="background: var(--bg-surface-hover); font-weight: bold;">
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group">
-                            <label>Fecha de Salto</label>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 0.65rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="edit-res-date">Fecha de Salto</label>
                             <input type="date" id="edit-res-date" class="form-control" required>
                         </div>
-                        <div class="form-group">
-                            <label>Tipo de Salto</label>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="edit-res-type">Tipo de Salto</label>
                             <select id="edit-res-type" class="form-control" disabled style="background: var(--bg-surface-hover); font-weight: bold;">
                                 <option value="Salto Tandem">Salto Tandem</option>
                                 <option value="Fun Jumper">Fun Jumper</option>
@@ -127,6 +127,21 @@ window.Modules.booking = {
                                 <option value="Curso de Paracaidismo">Curso de Paracaidismo</option>
                             </select>
                         </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="edit-res-weight">Peso (kg)</label>
+                            <input type="number" id="edit-res-weight" class="form-control" min="0" max="200" step="0.5" placeholder="Ej. 75">
+                        </div>
+                    </div>
+                    <div id="edit-res-weight-info" style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-secondary);"></div>
+
+                    <div class="form-group" style="margin-bottom: 1.1rem; width: 100%;">
+                        <label for="edit-res-flight" style="display: block; margin-bottom: 0.4rem; font-weight: 600;">
+                            <i class="fas fa-plane" style="color: var(--brand-action); margin-right: 0.3rem;"></i> Vuelo Programado (Solo con disponibilidad)
+                        </label>
+                        <select id="edit-res-flight" class="form-control" style="width: 100%; max-width: 100%; text-overflow: ellipsis;">
+                            <option value="">Sin vuelo asignado (Por definir)</option>
+                        </select>
+                        <div id="edit-res-flight-info" style="font-size: 0.8rem; margin-top: 0.4rem; color: var(--text-secondary);"></div>
                     </div>
                     
                     <div class="form-group" style="margin-bottom: 1rem;">
@@ -219,9 +234,102 @@ window.Modules.booking = {
         const iEditEmail = document.getElementById('edit-res-email');
         const iEditDate = document.getElementById('edit-res-date');
         const iEditType = document.getElementById('edit-res-type');
+        const iEditWeight = document.getElementById('edit-res-weight');
+        const iEditWeightInfo = document.getElementById('edit-res-weight-info');
+        const iEditFlight = document.getElementById('edit-res-flight');
+        const iEditFlightInfo = document.getElementById('edit-res-flight-info');
         const iEditCam360 = document.getElementById('edit-res-cam-360');
         const iEditCamGoPro = document.getElementById('edit-res-cam-gopro');
         const iEditCamExt = document.getElementById('edit-res-cam-ext');
+
+        const formatMoneyBooking = (num) => '$' + parseInt(num || 0, 10).toLocaleString('es-CO');
+
+        function updateEditWeightInfo(weightVal, paxObj) {
+            if (!iEditWeightInfo) return;
+            const wt = window.FlightAvailabilityHelper
+                ? window.FlightAvailabilityHelper.getPassengerWeightSurcharge(weightVal, paxObj)
+                : { weight: parseFloat(weightVal) || 0, extraKg: 0, rate: 5000, charge: 0 };
+            if (wt.weight > 100) {
+                iEditWeightInfo.style.color = 'var(--brand-danger)';
+                iEditWeightInfo.innerHTML = `<i class="fas fa-exclamation-circle"></i> Peso > 100 kg (requiere S&amp;TA) · Recargo: <strong>+${formatMoneyBooking(wt.charge)}</strong> (${wt.extraKg} kg extra)`;
+            } else if (wt.extraKg > 0) {
+                iEditWeightInfo.style.color = 'var(--brand-warning)';
+                iEditWeightInfo.innerHTML = `<i class="fas fa-weight"></i> Recargo (> 85 kg): <strong>+${formatMoneyBooking(wt.charge)}</strong> (${wt.extraKg} kg × ${formatMoneyBooking(wt.rate)})`;
+            } else {
+                iEditWeightInfo.style.color = 'var(--text-secondary)';
+                iEditWeightInfo.textContent = 'Sin recargo por peso extra (≤ 85 kg).';
+            }
+        }
+
+        function populateEditFlightOptions(dateStr, paxObj, preserveCurrentIfSameDate = true) {
+            if (!iEditFlight) return;
+            iEditFlight.innerHTML = '<option value="">Sin vuelo asignado (Por definir)</option>';
+            if (!dateStr || !paxObj || !window.FlightAvailabilityHelper) {
+                if (iEditFlightInfo) iEditFlightInfo.textContent = 'Selecciona una fecha para consultar vuelos disponibles.';
+                return;
+            }
+
+            const allFlights = window.FlightAvailabilityHelper.getFlightsForDate(dateStr, {
+                excludePaxId: paxObj.id
+            });
+            const jType = paxObj.type || 'Salto Tandem';
+            const catLabel = window.FlightAvailabilityHelper.getCategoryLabel(jType);
+
+            // Mostrar únicamente vuelos con cupo real disponible (más el vuelo actual del pasajero para permitir conservarlo)
+            const selectableFlights = allFlights.filter(f =>
+                typeof f.canAssignForType === 'function'
+                    ? f.canAssignForType(jType)
+                    : (!f.isLocked && f.getAvailForType(jType) > 0)
+            );
+            const matchedCurrent = (preserveCurrentIfSameDate && paxObj.date === dateStr)
+                ? window.FlightAvailabilityHelper.findMatchingFlightForPax(paxObj, selectableFlights)
+                : null;
+            const selectedId = matchedCurrent ? matchedCurrent.flightId : '';
+
+            let optsHtml = '<option value="">Sin vuelo asignado (Por definir)</option>';
+            selectableFlights.forEach(f => {
+                // Disponibilidad REAL restante del vuelo (sin inflar el cupo del pasajero actual)
+                const realAvail = f.getAvailForType(jType);
+                const cap = f.getCapForType(jType);
+                const timeRange = f.horaFin ? `${f.horaInicio} - ${f.horaFin}` : f.horaInicio;
+                const isSel = selectedId === f.flightId;
+                const currentTag = (f.containsExcludedPax && paxObj.date === dateStr) ? ' (Vuelo actual)' : '';
+                optsHtml += `<option value="${escapeHTML(f.flightId)}" ${isSel ? 'selected' : ''}>${escapeHTML(f.vueloNum)} (${escapeHTML(timeRange)}) · ${escapeHTML(f.matricula)} — ${realAvail}/${cap} ${escapeHTML(catLabel)} disp.${currentTag}</option>`;
+            });
+
+            iEditFlight.innerHTML = optsHtml;
+            iEditFlight.value = selectedId;
+
+            if (iEditFlightInfo) {
+                if (allFlights.length === 0) {
+                    iEditFlightInfo.style.color = 'var(--brand-warning)';
+                    iEditFlightInfo.textContent = 'No hay vuelos programados para esta fecha. Puedes dejar la reserva sin vuelo.';
+                } else if (selectableFlights.length === 0) {
+                    iEditFlightInfo.style.color = 'var(--brand-danger)';
+                    iEditFlightInfo.textContent = `Todos los vuelos del día (${allFlights.length}) están sin cupo para ${catLabel}. Puedes dejar al pasajero sin vuelo.`;
+                } else {
+                    iEditFlightInfo.style.color = 'var(--brand-success)';
+                    iEditFlightInfo.textContent = `Mostrando ${selectableFlights.length} de ${allFlights.length} vuelo(s) disponibles para ${catLabel}.`;
+                }
+            }
+        }
+
+        if (iEditDate) {
+            iEditDate.addEventListener('change', () => {
+                const paxObj = paxToEditId ? window.AppData.passengers.find(p => p.id === paxToEditId) : null;
+                if (paxObj) {
+                    populateEditFlightOptions(iEditDate.value, paxObj, iEditDate.value === paxObj.date);
+                }
+            });
+        }
+        if (iEditWeight) {
+            const onWeightEditChange = () => {
+                const paxObj = paxToEditId ? window.AppData.passengers.find(p => p.id === paxToEditId) : null;
+                updateEditWeightInfo(iEditWeight.value, paxObj);
+            };
+            iEditWeight.addEventListener('input', onWeightEditChange);
+            iEditWeight.addEventListener('change', onWeightEditChange);
+        }
 
         document.getElementById('btn-close-edit-res-modal').addEventListener('click', () => {
             modalEditRes.style.display = 'none';
@@ -235,25 +343,70 @@ window.Modules.booking = {
             
             if(!iEditName.value || !iEditDate.value) return alert('Nombre y Fecha son obligatorios.');
 
+            const rawWeightVal = iEditWeight ? iEditWeight.value : '';
+            if (rawWeightVal !== '' && rawWeightVal !== null && parseFloat(rawWeightVal) < 0) {
+                return alert('El peso del pasajero no puede ser un valor negativo.');
+            }
+
+            const newDate = iEditDate.value;
+            const selectedFlightId = iEditFlight ? iEditFlight.value : '';
+
+            // Validar disponibilidad real del vuelo elegido antes de guardar
+            let chosenFlight = null;
+            if (selectedFlightId && window.FlightAvailabilityHelper) {
+                const flightsForNewDate = window.FlightAvailabilityHelper.getFlightsForDate(newDate, {
+                    excludePaxId: paxObj.id
+                });
+                chosenFlight = flightsForNewDate.find(f => f.flightId === selectedFlightId);
+                const canAssign = chosenFlight && (typeof chosenFlight.canAssignForType === 'function'
+                    ? chosenFlight.canAssignForType(paxObj.type)
+                    : (!chosenFlight.isLocked && chosenFlight.getAvailForType(paxObj.type) > 0));
+                if (!canAssign) {
+                    return alert('El vuelo seleccionado no cuenta con cupos disponibles. Elige un vuelo con disponibilidad o déjalo sin vuelo.');
+                }
+            }
+
             paxObj.name = iEditName.value.trim();
             paxObj.doc = iEditDoc.value.trim();
             paxObj.phone = iEditPhone.value.trim();
             paxObj.email = iEditEmail.value.trim();
             const oldDate = paxObj.date;
-            paxObj.date = iEditDate.value;
-            paxObj.jumpdate = iEditDate.value;
+            paxObj.date = newDate;
+            paxObj.jumpdate = newDate;
             paxObj.type = iEditType.value;
-            
-            // Si la fecha cambió, el pasajero debe perder su estado de Check-in y Vuelo
+
+            // Si la fecha cambió, el pasajero pierde estado de Check-in e instructores previos
             if (oldDate !== paxObj.date) {
                 paxObj.paxStatus = 'Pendiente Check-in';
-                paxObj.aeronave = 'Sin asignar';
-                paxObj.vueloNum = '';
-                paxObj.time = 'Por definir';
                 paxObj.flightStatus = 'Programado';
                 paxObj.instructor = 'Sin asignar';
                 paxObj.camInstructor = 'Sin asignar';
             }
+
+            // Aplicar vuelo elegido (o dejar sin vuelo)
+            if (chosenFlight) {
+                paxObj.flightId = chosenFlight.flightId;
+                paxObj.aeronave = chosenFlight.matricula;
+                paxObj.vueloNum = chosenFlight.vueloNum;
+                paxObj.time = chosenFlight.horaInicio;
+                if (!paxObj.flightStatus || oldDate !== paxObj.date) {
+                    paxObj.flightStatus = 'Programado';
+                }
+            } else {
+                paxObj.flightId = '';
+                paxObj.aeronave = 'Sin asignar';
+                paxObj.vueloNum = '';
+                paxObj.time = 'Por definir';
+                if (oldDate !== paxObj.date || !paxObj.flightStatus) {
+                    paxObj.flightStatus = 'Programado';
+                }
+            }
+
+            // Actualizar peso y calcular política de recargo (> 85 kg)
+            const wt = window.FlightAvailabilityHelper
+                ? window.FlightAvailabilityHelper.getPassengerWeightSurcharge(rawWeightVal, paxObj)
+                : { weight: parseFloat(rawWeightVal) || 0, extraKg: 0, rate: 5000, charge: 0 };
+            paxObj.weight = wt.weight;
             
             const selectedCams = [];
             if (!paxObj.adiciones) paxObj.adiciones = {};
@@ -281,7 +434,7 @@ window.Modules.booking = {
 
             paxObj.cams = selectedCams.length > 0 ? selectedCams.join(', ') : 'Ninguna';
             
-            // Recalculate base manualPrice using passenger's frozen tariffSnapshot (never retroactively applying newer Maestro rates)
+            // Recalculate total using passenger's frozen tariffSnapshot (never retroactively applying newer Maestro rates)
             const getPrice = (name) => {
                 if (window.TariffGuard) {
                     return window.TariffGuard.getPriceForRecord(paxObj, name);
@@ -296,16 +449,23 @@ window.Modules.booking = {
             const baseItemName = window.TariffGuard
                 ? window.TariffGuard.resolveJumpTypeItemName(paxObj.type, window.TariffGuard.getEffectiveMaestroForRecord(paxObj))
                 : (paxObj.type === 'Tandem' ? 'Salto Tandem' : paxObj.type);
-            let newPrice = getPrice(baseItemName);
+            const isExplicitCortesia = Boolean(paxObj.cortesia || (paxObj.financiera && paxObj.financiera.cortesiaObs));
+            const baseJumpPrice = isExplicitCortesia
+                ? (parseFloat(paxObj.financiera?.manualPrice) || 0)
+                : getPrice(baseItemName);
+            let camsTotal = 0;
             selectedCams.forEach(cam => {
-                if (cam.includes('360')) newPrice += getPrice('Cámara 360');
-                if (cam.includes('GoPro') || cam.includes('Go-Pro')) newPrice += getPrice('Cámara Go-Pro');
-                if (cam.includes('Externa')) newPrice += getPrice('Cámara Externa');
+                if (cam.includes('360')) camsTotal += getPrice('Cámara 360');
+                if (cam.includes('GoPro') || cam.includes('Go-Pro')) camsTotal += getPrice('Cámara Go-Pro');
+                if (cam.includes('Externa')) camsTotal += getPrice('Cámara Externa');
             });
             
             if (!paxObj.financiera) paxObj.financiera = { manualPrice: 0, discount: 0, totalPaid: 0 };
-            paxObj.financiera.manualPrice = newPrice;
-            paxObj.financiera.totalValue = Math.max(0, newPrice - (paxObj.financiera.discount || 0));
+            paxObj.financiera.manualPrice = baseJumpPrice;
+            paxObj.financiera.kgExtra = wt.extraKg;
+            paxObj.financiera.kgExtraRate = wt.rate;
+            paxObj.financiera.kgExtraCharge = wt.charge;
+            paxObj.financiera.totalValue = Math.max(0, baseJumpPrice + camsTotal + wt.charge - (paxObj.financiera.discount || 0));
             
             if (window.saveAppData) window.saveAppData();
             alert('Reserva actualizada exitosamente.');
@@ -671,8 +831,9 @@ window.Modules.booking = {
                         <i class="fas fa-id-card"></i> ${escapeHTML(p.doc)} &nbsp;|&nbsp; <i class="fas fa-phone"></i> ${escapeHTML(p.phone)}
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-secondary);">
-                        <i class="fas fa-calendar"></i> ${escapeHTML(p.date)} &nbsp;|&nbsp; <i class="fas fa-clock"></i> ${escapeHTML(p.time || 'N/A')}
-                        ${p.aeronave && p.aeronave !== 'Sin asignar' ? `<br><i class="fas fa-plane"></i> ${escapeHTML(p.aeronave)}` : ''}
+                        <i class="fas fa-calendar"></i> ${escapeHTML(p.date)} &nbsp;|&nbsp; <i class="fas fa-clock"></i> ${escapeHTML(p.time || 'Por definir')}
+                        ${p.weight && parseFloat(p.weight) > 0 ? ` &nbsp;|&nbsp; <i class="fas fa-weight"></i> <strong>${escapeHTML(String(p.weight))} kg</strong>${parseFloat(p.weight) > 85 ? ` <span style="color: var(--brand-warning); font-weight: 700;">(+${Number((parseFloat(p.weight) - 85).toFixed(2))} kg)</span>` : ''}` : ''}
+                        ${p.aeronave && p.aeronave !== 'Sin asignar' ? `<br><i class="fas fa-plane" style="color: var(--brand-action);"></i> <strong>${escapeHTML(p.vueloNum ? `${p.vueloNum} · ${p.aeronave}` : p.aeronave)}</strong>` : '<br><i class="fas fa-plane-slash" style="opacity: 0.65;"></i> Sin vuelo asignado'}
                     </div>
                     ${paymentStatusHtml}
                     ${!isCancelled ? supportHtml : ''}
@@ -745,10 +906,15 @@ window.Modules.booking = {
                     iEditEmail.value = p.email || '';
                     iEditDate.value = p.date || '';
                     iEditType.value = p.type || 'Salto Tandem';
+                    if (iEditWeight) {
+                        iEditWeight.value = (p.weight !== undefined && p.weight !== null && p.weight > 0) ? p.weight : '';
+                    }
+                    updateEditWeightInfo(p.weight || '', p);
+                    populateEditFlightOptions(p.date || '', p, true);
                     
                     const cams = p.cams || '';
                     iEditCam360.checked = cams.includes('360');
-                    iEditCamGoPro.checked = cams.includes('GoPro');
+                    iEditCamGoPro.checked = cams.includes('GoPro') || cams.includes('Go-Pro');
                     iEditCamExt.checked = cams.includes('Externa');
                     
                     modalEditRes.style.display = 'flex';
