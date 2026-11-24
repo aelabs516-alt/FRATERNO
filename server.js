@@ -20,6 +20,29 @@ const pool = new Pool({
 const CLEAN_RESET_VERSION = 'clean_slate_2026_11_19_v1';
 const DEFAULT_MASTER_ADMIN_PASS = '01Fraterno*';
 
+function normalizeServerUserRole(rawRole, userObj = null) {
+    if (userObj) {
+        const uname = String(userObj.username || '').trim().toLowerCase();
+        const uid = String(userObj.id || '').trim().toLowerCase();
+        const fullName = String(userObj.name || '').trim().toLowerCase();
+        if (uname === 'admin01' || uid === 'usr_admin' || fullName === 'admin master') {
+            return 'Administrador';
+        }
+    }
+    const r = String(rawRole || '').trim();
+    const rLow = r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (rLow.includes('asesor') || rLow.includes('venta') || rLow.includes('veta') || rLow.includes('comercial') || rLow.includes('sales')) {
+        return 'Asesor de Ventas';
+    }
+    if (rLow.includes('operacion') || rLow.includes('operador') || rLow.includes('operation')) {
+        return 'Operaciones';
+    }
+    if (rLow === 'admin' || rLow === 'administrador' || rLow === 'superadmin' || rLow === 'administrator') {
+        return 'Administrador';
+    }
+    return r || 'Operaciones';
+}
+
 function migrateMasterAdminPassword(state) {
     if (!state || !Array.isArray(state.users)) return false;
     let changed = false;
@@ -243,8 +266,9 @@ app.get('/api/auth/session-check', async (req, res) => {
         return res.json({
             active: true,
             id: found.id || null,
+            name: found.name || '',
             username: found.username,
-            role: found.role,
+            role: normalizeServerUserRole(found.role, found),
             allowedRoutes: Array.isArray(found.allowedRoutes) ? found.allowedRoutes : null,
             mustChangePassword: Boolean(found.mustChangePassword),
             updatedAt: found.updatedAt || null
@@ -255,7 +279,7 @@ app.get('/api/auth/session-check', async (req, res) => {
     }
 });
 
-function reconcileUsersState(existingState, incomingState) {
+function reconcileUsersState(existingState, incomingState, callerInfo = {}) {
     if (!incomingState || typeof incomingState !== 'object') return;
     const prevDeleted = (existingState && Array.isArray(existingState.deletedUserIds)) ? existingState.deletedUserIds : [];
     const nextDeleted = Array.isArray(incomingState.deletedUserIds) ? incomingState.deletedUserIds : [];
@@ -267,15 +291,36 @@ function reconcileUsersState(existingState, incomingState) {
         : [];
     const prevUsers = (existingState && Array.isArray(existingState.users)) ? existingState.users : [];
 
+    // Determinar si quien envía POST /api/state NO es Administrador (ej. un Asesor de Ventas guardando una reserva)
+    // para impedir que una pestaña desactualizada de un asesor revierta su propio rol a Administrador.
+    const callerId = String(callerInfo.userId || '').trim();
+    const callerUname = String(callerInfo.username || '').trim().toLowerCase();
+    let callerIsNonAdmin = false;
+    if ((callerId || callerUname) && callerId !== 'usr_admin' && callerUname !== 'admin01') {
+        const prevCaller = prevUsers.find(u =>
+            u && ((callerId && u.id === callerId) || (callerUname && String(u.username || '').trim().toLowerCase() === callerUname))
+        );
+        if (prevCaller && normalizeServerUserRole(prevCaller.role, prevCaller) !== 'Administrador') {
+            callerIsNonAdmin = true;
+        }
+    }
+
+    incUsers.forEach(u => {
+        if (u) u.role = normalizeServerUserRole(u.role, u);
+    });
+
     prevUsers.forEach(prevU => {
         if (!prevU || (prevU.id && deletedSet.has(prevU.id))) return;
+        const prevCanonicalRole = normalizeServerUserRole(prevU.role, prevU);
         const prevUname = String(prevU.username || '').trim().toLowerCase();
         const match = incUsers.find(u =>
             u && ((prevU.id && u.id === prevU.id) || (prevUname && String(u.username || '').trim().toLowerCase() === prevUname))
         );
         if (!match) {
             // Conservar usuarios creados en otra sesión que aún no estaban hidratados en la pestaña emisora
-            incUsers.push(JSON.parse(JSON.stringify(prevU)));
+            const cloned = JSON.parse(JSON.stringify(prevU));
+            cloned.role = prevCanonicalRole;
+            incUsers.push(cloned);
         } else {
             if (prevU.passwordUpdatedAt && (!match.passwordUpdatedAt || prevU.passwordUpdatedAt > match.passwordUpdatedAt)) {
                 // Conservar el cambio de contraseña más reciente frente a pestañas con caché anterior
@@ -283,9 +328,14 @@ function reconcileUsersState(existingState, incomingState) {
                 match.mustChangePassword = prevU.mustChangePassword;
                 match.passwordUpdatedAt = prevU.passwordUpdatedAt;
             }
-            if (prevU.updatedAt && (!match.updatedAt || prevU.updatedAt > match.updatedAt)) {
+            if (callerIsNonAdmin) {
+                // Un usuario no-administrador nunca puede alterar roles ni permisos de usuarios existentes
+                match.role = prevCanonicalRole;
                 if (Array.isArray(prevU.allowedRoutes)) match.allowedRoutes = prevU.allowedRoutes;
-                if (prevU.role) match.role = prevU.role;
+                if (prevU.updatedAt) match.updatedAt = prevU.updatedAt;
+            } else if (prevU.updatedAt && (!match.updatedAt || prevU.updatedAt > match.updatedAt)) {
+                if (Array.isArray(prevU.allowedRoutes)) match.allowedRoutes = prevU.allowedRoutes;
+                match.role = prevCanonicalRole;
                 if (prevU.name) match.name = prevU.name;
                 match.updatedAt = prevU.updatedAt;
             }
@@ -333,7 +383,7 @@ app.post('/api/state', async (req, res) => {
             });
         }
 
-        reconcileUsersState(currentExisting, newData);
+        reconcileUsersState(currentExisting, newData, { userId: reqUserId, username: reqUsername });
 
         memoryFallbackState = JSON.parse(JSON.stringify(newData));
 

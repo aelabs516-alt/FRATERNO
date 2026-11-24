@@ -215,10 +215,10 @@ window.Modules.settings = {
                         <h4 style="margin-top: 1.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Rol y Accesos</h4>
                         <div class="form-group">
                             <label>Rol del Usuario</label>
-                            <select id="usr-role" class="form-control">
-                                <option>Administrador</option>
-                                <option>Asesor de Ventas</option>
-                                <option>Operaciones</option>
+                            <select id="usr-role" class="form-control" translate="no">
+                                <option value="Administrador">Administrador</option>
+                                <option value="Asesor de Ventas">Asesor de Ventas</option>
+                                <option value="Operaciones">Operaciones</option>
                             </select>
                         </div>
                         
@@ -432,7 +432,7 @@ window.Modules.settings = {
                 tr.innerHTML = `
                     <td style="padding: 1rem; font-weight: 500;">${escapeHTML(u.name)}</td>
                     <td style="padding: 1rem;">${escapeHTML(u.username)}</td>
-                    <td style="padding: 1rem;">${escapeHTML(u.role)}</td>
+                    <td style="padding: 1rem;">${escapeHTML(window.normalizeUserRoleLabel ? window.normalizeUserRoleLabel(u.role, u) : u.role)}</td>
                     <td style="padding: 1rem; text-align: center;">
                         <button class="btn btn-edit" data-id="${escapeHTML(u.id)}" style="color: var(--brand-action); padding: 0.25rem;"><i class="fas fa-edit"></i></button>
                         <button class="btn btn-delete" data-id="${escapeHTML(u.id)}" style="color: var(--brand-danger); padding: 0.25rem;"><i class="fas fa-trash"></i></button>
@@ -548,12 +548,27 @@ window.Modules.settings = {
                         if (editPassBox) editPassBox.style.display = 'block';
                         if (defaultPassInfo) defaultPassInfo.style.display = 'none';
                         if (roleSelect) {
-                            const roleTxt = targetUsr ? (targetUsr.role || '') : (tr.cells && tr.cells[2] ? tr.cells[2].innerText.trim() : '');
+                            const rawRoleTxt = targetUsr ? (targetUsr.role || '') : (tr.cells && tr.cells[2] ? tr.cells[2].innerText.trim() : '');
+                            const canonicalRole = window.normalizeUserRoleLabel
+                                ? window.normalizeUserRoleLabel(rawRoleTxt, targetUsr)
+                                : rawRoleTxt.trim();
+                            let matchedIdx = -1;
                             for (let i = 0; i < roleSelect.options.length; i++) {
-                                if (roleSelect.options[i].text === roleTxt || roleSelect.options[i].value === roleTxt) {
-                                    roleSelect.selectedIndex = i;
+                                const optVal = String(roleSelect.options[i].value || '').trim();
+                                const optTxt = String(roleSelect.options[i].text || '').trim();
+                                const optNorm = window.normalizeUserRoleLabel ? window.normalizeUserRoleLabel(optVal || optTxt) : (optVal || optTxt);
+                                if (
+                                    optVal.toLowerCase() === canonicalRole.toLowerCase() ||
+                                    optTxt.toLowerCase() === canonicalRole.toLowerCase() ||
+                                    optNorm === canonicalRole
+                                ) {
+                                    matchedIdx = i;
                                     break;
                                 }
+                            }
+                            if (matchedIdx !== -1) {
+                                roleSelect.selectedIndex = matchedIdx;
+                                roleSelect.value = roleSelect.options[matchedIdx].value || canonicalRole;
                             }
                         }
 
@@ -1215,7 +1230,11 @@ window.Modules.settings = {
             const cedula = cedulaRaw.replace(/[\s.,-]/g, '');
             const phone = phoneInput ? phoneInput.value.trim() : '';
             const email = emailInput ? emailInput.value.trim() : '';
-            const role = document.getElementById('usr-role').value;
+            const roleSelectEl = document.getElementById('usr-role');
+            const rawSelectedRole = roleSelectEl
+                ? (roleSelectEl.value || (roleSelectEl.options && roleSelectEl.options[roleSelectEl.selectedIndex] ? (roleSelectEl.options[roleSelectEl.selectedIndex].value || roleSelectEl.options[roleSelectEl.selectedIndex].text) : ''))
+                : '';
+            const role = window.normalizeUserRoleLabel ? window.normalizeUserRoleLabel(rawSelectedRole) : String(rawSelectedRole || '').trim();
             const password = usrPassInput ? usrPassInput.value : '';
             const photoInput = document.getElementById('usr-photo');
             const photoData = photoInput ? photoInput.dataset.base64 : null;
@@ -1297,6 +1316,22 @@ window.Modules.settings = {
                         user.passwordUpdatedAt = user.updatedAt;
                     }
                     if (photoData) user.photo = photoData;
+                    try {
+                        const rawSess = sessionStorage.getItem('fraterno_user');
+                        if (rawSess) {
+                            const sessObj = JSON.parse(rawSess);
+                            if (sessObj && (sessObj.id === user.id || String(sessObj.username || '').toLowerCase() === user.username.toLowerCase())) {
+                                const updatedSess = { ...sessObj, ...user };
+                                sessionStorage.setItem('fraterno_user', JSON.stringify(updatedSess));
+                                if (window.resolveSessionRoleCode) {
+                                    sessionStorage.setItem('fraterno_role', window.resolveSessionRoleCode(user.role, user));
+                                }
+                                if (window.updateSidebarUserProfileUI) {
+                                    window.updateSidebarUserProfileUI(updatedSess);
+                                }
+                            }
+                        }
+                    } catch (eSess) {}
                     if (window.showAlert) window.showAlert('Usuario actualizado con éxito.', { type: 'success', title: 'Usuario Actualizado' });
                     else alert('Usuario actualizado con éxito.');
                 }
@@ -1341,7 +1376,12 @@ window.Modules.settings = {
             if (cedulaInput) cedulaInput.value = '';
             if (phoneInput) phoneInput.value = '';
             if (emailInput) emailInput.value = '';
-            document.getElementById('usr-role').selectedIndex = 0;
+            if (roleSelectEl) {
+                roleSelectEl.selectedIndex = 0;
+                if (roleSelectEl.options && roleSelectEl.options[0]) {
+                    roleSelectEl.value = roleSelectEl.options[0].value || 'Administrador';
+                }
+            }
             document.querySelectorAll('.usr-module-chk').forEach(chk => { chk.checked = true; });
             if (usrPassInput) {
                 usrPassInput.value = '';

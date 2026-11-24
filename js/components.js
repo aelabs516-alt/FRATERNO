@@ -125,6 +125,79 @@ window.escapeHTML = function(str) {
 };
 
 // ==========================================
+// Helper: Normalización Canónica de Rol / Etiqueta de Usuario
+// Evita que perfiles como Asesor de Ventas u Operaciones cambien a Administrador
+// ==========================================
+window.normalizeUserRoleLabel = function(rawRole, userObj = null) {
+    if (userObj) {
+        const uname = String(userObj.username || '').trim().toLowerCase();
+        const uid = String(userObj.id || '').trim().toLowerCase();
+        const fullName = String(userObj.name || '').trim().toLowerCase();
+        if (uname === 'admin01' || uid === 'usr_admin' || fullName === 'admin master') {
+            return 'Administrador';
+        }
+    }
+
+    const r = String(rawRole || '').trim();
+    const rLow = r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    if (
+        rLow.includes('asesor') ||
+        rLow.includes('venta') ||
+        rLow.includes('veta') ||
+        rLow.includes('comercial') ||
+        rLow.includes('sales')
+    ) {
+        return 'Asesor de Ventas';
+    }
+    if (
+        rLow.includes('operacion') ||
+        rLow.includes('operador') ||
+        rLow.includes('operation')
+    ) {
+        return 'Operaciones';
+    }
+    if (
+        rLow === 'admin' ||
+        rLow === 'administrador' ||
+        rLow === 'superadmin' ||
+        rLow === 'administrator'
+    ) {
+        return 'Administrador';
+    }
+    if (r) return r;
+
+    try {
+        const sessCode = typeof sessionStorage !== 'undefined' ? String(sessionStorage.getItem('fraterno_role') || '').toLowerCase() : '';
+        if (sessCode === 'ventas') return 'Asesor de Ventas';
+        if (sessCode === 'operaciones') return 'Operaciones';
+        if (sessCode === 'admin') return 'Administrador';
+    } catch (e) {}
+    return 'Usuario';
+};
+
+window.resolveSessionRoleCode = function(rawRole, userObj = null) {
+    const label = window.normalizeUserRoleLabel(rawRole, userObj);
+    if (label === 'Administrador') return 'admin';
+    if (label === 'Asesor de Ventas') return 'ventas';
+    if (label === 'Operaciones') return 'operaciones';
+    return 'operador';
+};
+
+window.updateSidebarUserProfileUI = function(userObj) {
+    if (!userObj) return;
+    const profileDiv = document.getElementById('sidebar-user-profile');
+    if (!profileDiv) return;
+    const h4 = profileDiv.querySelector('h4');
+    const roleSpan = profileDiv.querySelector('.role');
+    const avatarImg = profileDiv.querySelector('.avatar img');
+    const displayRole = window.normalizeUserRoleLabel(userObj.role, userObj);
+    if (h4) h4.innerText = userObj.name || userObj.username || 'Usuario';
+    if (roleSpan) roleSpan.innerText = '[' + displayRole + ']';
+    if (avatarImg) avatarImg.src = userObj.photo || 'https://i.pravatar.cc/150?img=11';
+};
+
+// ==========================================
 // Helper: Instructor Role Check (Req #6)
 // Cargo Instructor Tándem, AFF y S&TA aplica para Instructor Asignado
 // ==========================================
@@ -2715,18 +2788,26 @@ window.PasswordManager = {
         record.passwordUpdatedAt = new Date().toISOString();
 
         try {
+            const canonicalRole = window.normalizeUserRoleLabel ? window.normalizeUserRoleLabel(record.role, record) : record.role;
+            record.role = canonicalRole;
             const updatedSession = {
                 ...sessionUser,
                 id: record.id,
                 name: record.name,
                 username: record.username,
-                role: record.role,
+                role: canonicalRole,
                 allowedRoutes: Array.isArray(record.allowedRoutes) ? record.allowedRoutes : sessionUser.allowedRoutes,
                 photo: record.photo || sessionUser.photo || '',
                 mustChangePassword: false,
                 passwordUpdatedAt: record.passwordUpdatedAt
             };
             sessionStorage.setItem('fraterno_user', JSON.stringify(updatedSession));
+            if (window.resolveSessionRoleCode) {
+                sessionStorage.setItem('fraterno_role', window.resolveSessionRoleCode(canonicalRole, record));
+            }
+            if (window.updateSidebarUserProfileUI) {
+                window.updateSidebarUserProfileUI(updatedSession);
+            }
         } catch (e) {}
 
         if (typeof window.saveAppData === 'function') {

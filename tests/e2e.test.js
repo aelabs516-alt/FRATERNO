@@ -3358,3 +3358,104 @@ test('3.25 [Seguridad Multi-Dispositivo al Eliminar Usuario] Impide reingreso y 
     );
     assert.equal(unauthorizedWrite.status, 401, 'POST /api/state debe rechazar con 401 cualquier escritura de un usuario eliminado');
 });
+
+test('3.26 [Etiquetas de Rol de Usuario] Mantiene siempre [Asesor de Ventas] en menú lateral, edición de usuario, cambio de clave y sincronización multi-equipo sin pasar a [Administrador]', async () => {
+    await requestApp('POST', '/api/reset-state', { confirm: true });
+
+    // Equipo A: Admin Master
+    const adminCtx = buildSPAContext();
+    adminCtx.win.showAlert = () => {};
+    await adminCtx.win.syncStateFromServer();
+    adminCtx.win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    adminCtx.win.sessionStorage.setItem('fraterno_role', 'admin');
+    adminCtx.win.location.hash = '#/configuracion';
+    adminCtx.win.router();
+
+    // 1. Crear usuario Jan Carlos Muñeton con perfil Asesor de Ventas
+    adminCtx.doc.getElementById('usr-name').value = 'Jan Carlos Muñeton';
+    adminCtx.doc.getElementById('usr-username').value = 'jancarlos_v';
+    adminCtx.doc.getElementById('usr-cedula').value = '1036998877';
+    adminCtx.doc.getElementById('usr-role').value = 'Asesor de Ventas';
+    adminCtx.doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 30));
+
+    let janRec = adminCtx.win.AppData.users.find(u => u.username === 'jancarlos_v');
+    assert.ok(janRec);
+    assert.equal(janRec.role, 'Asesor de Ventas');
+
+    // 2. Iniciar sesión como Jan Carlos en Equipo B y cambiar contraseña inicial
+    const advisorCtx = buildSPAContext();
+    advisorCtx.win.showAlert = () => {};
+    advisorCtx.win.location.hash = '#/login';
+    advisorCtx.win.router();
+
+    advisorCtx.doc.getElementById('login-user').value = 'jancarlos_v';
+    advisorCtx.doc.getElementById('login-pass').value = '1036998877Fp*';
+    advisorCtx.doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 35));
+    advisorCtx.win.router();
+
+    let profileCard = advisorCtx.doc.getElementById('sidebar-user-profile');
+    assert.equal(profileCard.querySelector('h4').innerText, 'Jan Carlos Muñeton');
+    assert.equal(profileCard.querySelector('.role').innerText, '[Asesor de Ventas]', 'Al iniciar sesión la etiqueta debe mostrar [Asesor de Ventas]');
+    assert.equal(advisorCtx.win.sessionStorage.getItem('fraterno_role'), 'ventas');
+
+    // Completar cambio de clave de primer login -> debe conservar [Asesor de Ventas]
+    advisorCtx.doc.getElementById('pwd-new').value = 'JanSegura#2026';
+    advisorCtx.doc.getElementById('pwd-confirm').value = 'JanSegura#2026';
+    advisorCtx.doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+    await new Promise(r => setTimeout(r, 30));
+    advisorCtx.win.router();
+
+    assert.equal(profileCard.querySelector('.role').innerText, '[Asesor de Ventas]', 'Tras cambiar contraseña la etiqueta nunca debe cambiar a [Administrador]');
+    assert.equal(advisorCtx.win.sessionStorage.getItem('fraterno_role'), 'ventas');
+
+    // 3. Editar el usuario en Equipo A (ej. actualizar módulos/teléfono o variante "Asesor de vetas" / traducción del navegador) -> NO debe revertir a Administrador
+    await adminCtx.win.syncStateFromServer();
+    janRec = adminCtx.win.AppData.users.find(u => u.username === 'jancarlos_v');
+    janRec.role = 'Asesor de vetas'; // incluso con variante tipográfica previa
+    adminCtx.win.renderUsersTable();
+
+    const editBtn = adminCtx.doc.querySelectorAll('#table-usr .btn-edit').find(b => b.getAttribute('data-id') === janRec.id);
+    assert.ok(editBtn, 'Debe existir botón editar para jancarlos_v');
+    editBtn.closest('.crud-table').dispatchEvent({ type: 'click', target: editBtn });
+
+    assert.equal(adminCtx.doc.getElementById('usr-role').value, 'Asesor de Ventas', 'Al editar debe seleccionar automáticamente Asesor de Ventas y no caer en Administrador');
+    adminCtx.doc.getElementById('usr-phone').value = '3007778899';
+    adminCtx.doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 30));
+
+    janRec = adminCtx.win.AppData.users.find(u => u.username === 'jancarlos_v');
+    assert.equal(janRec.role, 'Asesor de Ventas', 'Guardar cambios debe preservar el perfil Asesor de Ventas');
+
+    // 4. Si en una sesión abierta existía una etiqueta vieja [Administrador] y en el servidor el rol es Asesor de Ventas, debe corregirse en vivo
+    advisorCtx.win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        ...janRec,
+        role: 'Administrador'
+    }));
+    advisorCtx.win.sessionStorage.setItem('fraterno_role', 'admin');
+    await advisorCtx.win.verifyActiveSessionWithServer();
+
+    assert.equal(profileCard.querySelector('.role').innerText, '[Asesor de Ventas]', 'verifyActiveSessionWithServer debe corregir en vivo la etiqueta a [Asesor de Ventas]');
+    assert.equal(advisorCtx.win.sessionStorage.getItem('fraterno_role'), 'ventas');
+
+    // 5. Incluso si una pestaña desactualizada de un Asesor envía por error role: 'Administrador' en POST /api/state, el servidor conserva 'Asesor de Ventas'
+    const stalePayload = JSON.parse(JSON.stringify(advisorCtx.win.AppData));
+    const staleUser = stalePayload.users.find(u => u.username === 'jancarlos_v');
+    staleUser.role = 'Administrador';
+    staleUser.updatedAt = new Date(Date.now() + 60000).toISOString();
+
+    const postRes = await requestApp(
+        'POST',
+        '/api/state',
+        stalePayload,
+        { 'x-fraterno-user-id': janRec.id, 'x-fraterno-username': 'jancarlos_v' }
+    );
+    assert.equal(postRes.status, 200);
+
+    const verifyState = await (await requestApp('GET', '/api/state')).json();
+    const serverJan = verifyState.users.find(u => u.username === 'jancarlos_v');
+    assert.equal(serverJan.role, 'Asesor de Ventas', 'Un usuario Asesor de Ventas nunca puede sobrescribir ni revertir su rol a Administrador en PostgreSQL');
+});

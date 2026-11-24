@@ -117,13 +117,24 @@ window.Modules.login = {
         }
 
         function completeLogin(matchedUser) {
+            const canonicalRole = window.normalizeUserRoleLabel
+                ? window.normalizeUserRoleLabel(matchedUser.role, matchedUser)
+                : matchedUser.role;
+            matchedUser.role = canonicalRole;
+            const sessionRoleCode = window.resolveSessionRoleCode
+                ? window.resolveSessionRoleCode(canonicalRole, matchedUser)
+                : (String(canonicalRole || '').toLowerCase().includes('venta') ? 'ventas' : 'admin');
+
             sessionStorage.setItem('fraterno_user', JSON.stringify(matchedUser));
-            sessionStorage.setItem('fraterno_role', String(matchedUser.role || '').toLowerCase().includes('venta') ? 'ventas' : 'admin');
+            sessionStorage.setItem('fraterno_role', sessionRoleCode);
             sessionStorage.setItem('fraterno_check_support_notifs', '1');
+            if (window.updateSidebarUserProfileUI) {
+                window.updateSidebarUserProfileUI(matchedUser);
+            }
 
             const landing = (typeof window.getDefaultLandingRouteForUser === 'function')
                 ? window.getDefaultLandingRouteForUser(matchedUser)
-                : (String(matchedUser.role || '').toLowerCase().includes('venta') ? '/reservas' : '/');
+                : (sessionRoleCode === 'ventas' ? '/reservas' : '/');
             window.location.hash = landing;
         }
 

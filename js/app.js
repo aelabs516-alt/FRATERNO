@@ -514,11 +514,11 @@ window.resolveEffectiveUserRecord = function(sessionUser) {
         const uname = String(sessionUser.username).trim().toLowerCase();
         liveRecord = users.find(u => u && String(u.username || '').trim().toLowerCase() === uname) || null;
     }
-    if (!liveRecord) return sessionUser;
-    return {
-        ...sessionUser,
-        ...liveRecord
-    };
+    const merged = liveRecord ? { ...sessionUser, ...liveRecord } : { ...sessionUser };
+    if (window.normalizeUserRoleLabel) {
+        merged.role = window.normalizeUserRoleLabel(merged.role, merged);
+    }
+    return merged;
 };
 
 window.getUserAllowedRoutes = function(user) {
@@ -668,13 +668,39 @@ window.verifyActiveSessionWithServer = function() {
                         window.revokeDeletedUserSession();
                         return false;
                     }
-                } else if (data && data.active === true && window.AppData && Array.isArray(window.AppData.users)) {
-                    const localMatch = window.AppData.users.find(u =>
-                        u && (uid ? u.id === uid : String(u.username || '').trim().toLowerCase() === uname)
-                    );
-                    if (localMatch && Array.isArray(data.allowedRoutes)) {
-                        localMatch.allowedRoutes = data.allowedRoutes;
+                } else if (data && data.active === true) {
+                    const canonicalServerRole = window.normalizeUserRoleLabel
+                        ? window.normalizeUserRoleLabel(data.role, { id: data.id || uid, username: data.username || uname, name: data.name })
+                        : data.role;
+                    let localMatch = null;
+                    if (window.AppData && Array.isArray(window.AppData.users)) {
+                        localMatch = window.AppData.users.find(u =>
+                            u && (uid ? u.id === uid : String(u.username || '').trim().toLowerCase() === uname)
+                        );
+                        if (localMatch) {
+                            if (canonicalServerRole) localMatch.role = canonicalServerRole;
+                            if (data.name) localMatch.name = data.name;
+                            if (Array.isArray(data.allowedRoutes)) localMatch.allowedRoutes = data.allowedRoutes;
+                            if (data.updatedAt) localMatch.updatedAt = data.updatedAt;
+                            window.saveToLocalStorageSafe(window.AppData);
+                        }
                     }
+                    try {
+                        const freshSessRaw = sessionStorage.getItem('fraterno_user');
+                        if (freshSessRaw) {
+                            const freshSessObj = JSON.parse(freshSessRaw);
+                            if (canonicalServerRole) freshSessObj.role = canonicalServerRole;
+                            if (data.name) freshSessObj.name = data.name;
+                            if (Array.isArray(data.allowedRoutes)) freshSessObj.allowedRoutes = data.allowedRoutes;
+                            sessionStorage.setItem('fraterno_user', JSON.stringify(freshSessObj));
+                            if (window.resolveSessionRoleCode && canonicalServerRole) {
+                                sessionStorage.setItem('fraterno_role', window.resolveSessionRoleCode(canonicalServerRole, freshSessObj));
+                            }
+                            if (window.updateSidebarUserProfileUI) {
+                                window.updateSidebarUserProfileUI(window.resolveEffectiveUserRecord(freshSessObj));
+                            }
+                        }
+                    } catch (eSyncSess) {}
                 }
             }
         } catch (err) {
@@ -694,7 +720,7 @@ function router() {
     
     // Auth Check & Sidebar Update
     const currentUserStr = sessionStorage.getItem('fraterno_user');
-    const currentRole = sessionStorage.getItem('fraterno_role');
+    let currentRole = sessionStorage.getItem('fraterno_role');
     let parsedSessionUser = null;
     let effectiveUser = null;
     
@@ -706,14 +732,30 @@ function router() {
                 return;
             }
             effectiveUser = window.resolveEffectiveUserRecord(parsedSessionUser);
-            const profileDiv = document.getElementById('sidebar-user-profile');
-            if (profileDiv && effectiveUser) {
-                const h4 = profileDiv.querySelector('h4');
-                const roleSpan = profileDiv.querySelector('.role');
-                const avatarImg = profileDiv.querySelector('.avatar img');
-                if (h4) h4.innerText = effectiveUser.name;
-                if (roleSpan) roleSpan.innerText = '[' + effectiveUser.role + ']';
-                if (avatarImg) avatarImg.src = effectiveUser.photo || 'https://i.pravatar.cc/150?img=11';
+            if (effectiveUser) {
+                if ((effectiveUser.id || effectiveUser.username) && window.resolveSessionRoleCode) {
+                    const expectedRoleCode = window.resolveSessionRoleCode(effectiveUser.role, effectiveUser);
+                    if (currentRole !== expectedRoleCode) {
+                        currentRole = expectedRoleCode;
+                        sessionStorage.setItem('fraterno_role', expectedRoleCode);
+                    }
+                    if (parsedSessionUser.role !== effectiveUser.role) {
+                        sessionStorage.setItem('fraterno_user', JSON.stringify(effectiveUser));
+                    }
+                }
+                if (window.updateSidebarUserProfileUI) {
+                    window.updateSidebarUserProfileUI(effectiveUser);
+                } else {
+                    const profileDiv = document.getElementById('sidebar-user-profile');
+                    if (profileDiv) {
+                        const h4 = profileDiv.querySelector('h4');
+                        const roleSpan = profileDiv.querySelector('.role');
+                        const avatarImg = profileDiv.querySelector('.avatar img');
+                        if (h4) h4.innerText = effectiveUser.name;
+                        if (roleSpan) roleSpan.innerText = '[' + effectiveUser.role + ']';
+                        if (avatarImg) avatarImg.src = effectiveUser.photo || 'https://i.pravatar.cc/150?img=11';
+                    }
+                }
             }
         } catch(e) {}
     }
@@ -965,12 +1007,28 @@ window.syncStateFromServer = function() {
                     try { localStorage.setItem('factura_seq', '1'); } catch (e) {}
                     window.saveAppData();
                 }
+                if (window.AppData && Array.isArray(window.AppData.users) && window.normalizeUserRoleLabel) {
+                    window.AppData.users.forEach(u => {
+                        if (u) u.role = window.normalizeUserRoleLabel(u.role, u);
+                    });
+                }
                 const activeSessionRaw = sessionStorage.getItem('fraterno_user');
                 if (activeSessionRaw) {
                     try {
                         const activeSessionObj = JSON.parse(activeSessionRaw);
                         if (window.isSessionUserDeletedLocally(activeSessionObj)) {
                             window.revokeDeletedUserSession();
+                        } else {
+                            const eff = window.resolveEffectiveUserRecord(activeSessionObj);
+                            if (eff) {
+                                sessionStorage.setItem('fraterno_user', JSON.stringify(eff));
+                                if ((eff.id || eff.username) && window.resolveSessionRoleCode) {
+                                    sessionStorage.setItem('fraterno_role', window.resolveSessionRoleCode(eff.role, eff));
+                                }
+                                if (window.updateSidebarUserProfileUI) {
+                                    window.updateSidebarUserProfileUI(eff);
+                                }
+                            }
                         }
                     } catch (errSess) {}
                 }
