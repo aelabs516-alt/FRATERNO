@@ -470,8 +470,86 @@ window.addEventListener('resize', window.detectDevice);
 window.addEventListener('orientationchange', window.detectDevice);
 
 // ==========================================
-// Router Engine & Auth
+// Permisos de Módulos por Usuario y Router Engine
 // ==========================================
+const MODULE_MAP = {
+    '/inventario': 'inventory',
+    '/rrhh': 'hrms',
+    '/caja': 'finance',
+    '/manifiesto': 'manifest',
+    '/checkin': 'checkin',
+    '/flota': 'fleet',
+    '/reservas': 'booking',
+    '/fids': 'fids',
+    '/videografia': 'media',
+    '/facturacion': 'billing',
+    '/historial': 'historySearch',
+    '/tienda': 'store',
+    '/generar-factura': 'invoicing'
+};
+
+window.resolveEffectiveUserRecord = function(sessionUser) {
+    if (!sessionUser) return null;
+    const users = (window.AppData && Array.isArray(window.AppData.users)) ? window.AppData.users : [];
+    let liveRecord = null;
+    if (sessionUser.id) {
+        liveRecord = users.find(u => u && u.id === sessionUser.id) || null;
+    }
+    if (!liveRecord && sessionUser.username) {
+        const uname = String(sessionUser.username).trim().toLowerCase();
+        liveRecord = users.find(u => u && String(u.username || '').trim().toLowerCase() === uname) || null;
+    }
+    if (!liveRecord) return sessionUser;
+    return {
+        ...sessionUser,
+        ...liveRecord
+    };
+};
+
+window.getUserAllowedRoutes = function(user) {
+    if (!user) return null;
+    const uname = String(user.username || '').trim().toLowerCase();
+    const uid = String(user.id || '').trim().toLowerCase();
+    // Admin Master (admin01) conserva siempre acceso completo
+    if (uname === 'admin01' || uid === 'usr_admin') return null;
+    if (Array.isArray(user.allowedRoutes)) {
+        return user.allowedRoutes;
+    }
+    return null;
+};
+
+window.getDefaultLandingRouteForUser = function(user, fallbackRole = null) {
+    const eff = window.resolveEffectiveUserRecord(user);
+    const allowed = window.getUserAllowedRoutes(eff);
+    const enabledModules = (window.AppData && window.AppData.enabledModules) || {};
+    const isRouteGloballyEnabled = (r) => {
+        const mk = MODULE_MAP[r];
+        return !(mk && enabledModules[mk] === false);
+    };
+
+    if (Array.isArray(allowed) && allowed.length > 0) {
+        const roleStr = String((eff && eff.role) || fallbackRole || '').toLowerCase();
+        if (roleStr.includes('venta') && allowed.includes('/reservas') && isRouteGloballyEnabled('/reservas')) {
+            return '/reservas';
+        }
+        if (allowed.includes('/') && isRouteGloballyEnabled('/')) {
+            return '/';
+        }
+        const preferredOrder = [
+            '/reservas', '/registro-salto', '/checkin', '/manifiesto', '/dashboard',
+            '/historial', '/facturacion', '/tienda', '/generar-factura', '/caja',
+            '/flota', '/inventario', '/asignacion', '/rrhh', '/videografia',
+            '/configuracion', '/fids', '/b2c', '/autogestion'
+        ];
+        const firstPreferred = preferredOrder.find(r => allowed.includes(r) && isRouteGloballyEnabled(r));
+        if (firstPreferred) return firstPreferred;
+        return allowed[0];
+    }
+
+    const rLow = String((eff && eff.role) || fallbackRole || '').toLowerCase();
+    return (rLow === 'ventas' || rLow.includes('venta')) ? '/registro-salto' : '/';
+};
+
 function router() {
     try {
         let hash = window.location.hash.slice(1) || '/';
@@ -480,74 +558,75 @@ function router() {
     // Auth Check & Sidebar Update
     const currentUserStr = sessionStorage.getItem('fraterno_user');
     const currentRole = sessionStorage.getItem('fraterno_role');
+    let parsedSessionUser = null;
+    let effectiveUser = null;
     
     if (currentUserStr) {
         try {
-            const user = JSON.parse(currentUserStr);
+            parsedSessionUser = JSON.parse(currentUserStr);
+            effectiveUser = window.resolveEffectiveUserRecord(parsedSessionUser);
             const profileDiv = document.getElementById('sidebar-user-profile');
-            if (profileDiv) {
+            if (profileDiv && effectiveUser) {
                 const h4 = profileDiv.querySelector('h4');
                 const roleSpan = profileDiv.querySelector('.role');
                 const avatarImg = profileDiv.querySelector('.avatar img');
-                if (h4) h4.innerText = user.name;
-                if (roleSpan) roleSpan.innerText = '[' + user.role + ']';
-                if (avatarImg) avatarImg.src = user.photo || 'https://i.pravatar.cc/150?img=11';
+                if (h4) h4.innerText = effectiveUser.name;
+                if (roleSpan) roleSpan.innerText = '[' + effectiveUser.role + ']';
+                if (avatarImg) avatarImg.src = effectiveUser.photo || 'https://i.pravatar.cc/150?img=11';
             }
         } catch(e) {}
     }
+
+    const defaultLanding = window.getDefaultLandingRouteForUser(effectiveUser, currentRole);
+    const userAllowedRoutes = window.getUserAllowedRoutes(effectiveUser);
 
     if (!currentUserStr && hash !== '/b2c' && hash !== '/autogestion') {
         hash = '/login';
         window.location.hash = '#/login';
     } else if (currentRole && hash === '/login') {
         // Already logged in, prevent accessing login
-        hash = currentRole === 'admin' ? '/' : '/registro-salto';
+        hash = defaultLanding;
         window.location.hash = '#' + hash;
     }
 
     // Validate route, default to appropriate dashboard
     if (!routes[hash]) {
-        hash = currentRole === 'admin' ? '/' : '/registro-salto';
+        hash = defaultLanding;
         window.location.hash = '#' + hash;
     }
     
     // Update active state on sidebar & Handle Permissions Visually
     const enabledModules = window.AppData.enabledModules || {};
-    
-    // Map of routes to module keys for toggle
-    const moduleMap = {
-        '/inventario': 'inventory',
-        '/rrhh': 'hrms',
-        '/caja': 'finance',
-        '/manifiesto': 'manifest',
-        '/checkin': 'checkin',
-        '/flota': 'fleet',
-        '/reservas': 'booking',
-        '/fids': 'fids',
-        '/videografia': 'media',
-        '/facturacion': 'billing',
-        '/historial': 'historySearch',
-        '/tienda': 'store',
-        '/generar-factura': 'invoicing'
-    };
+    const moduleMap = MODULE_MAP;
 
     // Check if the requested module is disabled
     const reqModKey = moduleMap[hash];
     if (reqModKey && enabledModules[reqModKey] === false) {
         alert('Este módulo ha sido deshabilitado por el administrador.');
-        hash = currentRole === 'admin' ? '/' : '/registro-salto';
+        hash = defaultLanding;
         window.location.hash = '#' + hash;
         return; // Stop execution and wait for hashchange
     }
 
-    // Control de acceso basado en roles (RBAC - OWASP A01 Broken Access Control)
-    if (currentRole && currentRole !== 'admin' && hash !== '/b2c' && hash !== '/autogestion' && hash !== '/login') {
-        const restrictedForVentas = ['/', '/dashboard', '/facturacion', '/configuracion'];
-        if (currentRole === 'ventas' && restrictedForVentas.includes(hash)) {
-            alert('Acceso denegado: Su rol no tiene permisos para acceder a este módulo.');
-            hash = '/registro-salto';
-            window.location.hash = '#/registro-salto';
-            return;
+    // Control de acceso por módulos asignados al usuario (o RBAC por rol en cuentas legacy)
+    if (currentUserStr && hash !== '/login') {
+        if (Array.isArray(userAllowedRoutes)) {
+            if (!userAllowedRoutes.includes(hash)) {
+                alert('Acceso denegado: No tienes permisos asignados para acceder a este módulo.');
+                if (defaultLanding && defaultLanding !== hash) {
+                    hash = defaultLanding;
+                    window.location.hash = '#' + hash;
+                    return;
+                }
+            }
+        } else if (currentRole && currentRole !== 'admin' && hash !== '/b2c' && hash !== '/autogestion') {
+            const restrictedForVentas = ['/', '/dashboard', '/facturacion', '/configuracion'];
+            if (currentRole === 'ventas' && restrictedForVentas.includes(hash)) {
+                alert('Acceso denegado: Su rol no tiene permisos para acceder a este módulo.');
+                hash = '/registro-salto';
+                window.location.hash = '#/registro-salto';
+                return;
+            }
         }
     }
 
@@ -571,8 +650,13 @@ function router() {
             item.style.display = 'none';
         }
 
-        // Hide certain modules if ventas
-        if (currentRole === 'ventas') {
+        // Mostrar únicamente los módulos permitidos seleccionados al crear/editar el usuario
+        if (Array.isArray(userAllowedRoutes)) {
+            if (!userAllowedRoutes.includes(r)) {
+                item.style.display = 'none';
+            }
+        } else if (currentRole === 'ventas') {
+            // Fallback legacy cuando el usuario no tiene allowedRoutes definidos
             if (r === '/' || r === '/facturacion' || r === '/configuracion') {
                 item.style.display = 'none';
             }
@@ -582,6 +666,37 @@ function router() {
             item.classList.add('active');
         }
     });
+
+    // Ocultar encabezados de sección (.nav-group-label) y separadores cuando todos sus módulos están ocultos
+    const sidebarNav = document.getElementById('sidebar-nav');
+    if (sidebarNav && sidebarNav.children) {
+        const children = Array.from(sidebarNav.children);
+        for (let i = 0; i < children.length; i++) {
+            const el = children[i];
+            if (el.classList && el.classList.contains('nav-group-label')) {
+                let hasVisibleItem = false;
+                for (let j = i + 1; j < children.length; j++) {
+                    const next = children[j];
+                    if (next.classList && (next.classList.contains('nav-group-label') || next.classList.contains('nav-separator'))) {
+                        break;
+                    }
+                    if (next.classList && next.classList.contains('nav-item') && next.style.display !== 'none') {
+                        hasVisibleItem = true;
+                        break;
+                    }
+                }
+                el.style.display = hasVisibleItem ? '' : 'none';
+            }
+        }
+        children.forEach((el, idx) => {
+            if (el.classList && el.classList.contains('nav-separator')) {
+                const hasVisibleAfter = children.slice(idx + 1).some(
+                    c => c.classList && c.classList.contains('nav-item') && c.style.display !== 'none'
+                );
+                el.style.display = hasVisibleAfter ? '' : 'none';
+            }
+        });
+    }
 
     const header = document.getElementById('main-header');
     const sidebar = document.getElementById('sidebar');

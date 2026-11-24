@@ -2721,6 +2721,7 @@ window.PasswordManager = {
                 name: record.name,
                 username: record.username,
                 role: record.role,
+                allowedRoutes: Array.isArray(record.allowedRoutes) ? record.allowedRoutes : sessionUser.allowedRoutes,
                 photo: record.photo || sessionUser.photo || '',
                 mustChangePassword: false,
                 passwordUpdatedAt: record.passwordUpdatedAt

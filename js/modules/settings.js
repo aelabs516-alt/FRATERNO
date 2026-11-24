@@ -222,28 +222,35 @@ window.Modules.settings = {
                             </select>
                         </div>
                         
-                        <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Módulos Permitidos:</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: var(--bg-surface-hover); padding: 1rem; border-radius: 8px;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Asignación de Flota</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Asignación de Recursos</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Caja Menor</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Check-in</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Configuración</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Consulta Historial</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Dashboard</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Facturación</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Generar Factura</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Inicio</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Inventario</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Manifiesto</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Pantalla FIDS</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Portal Autogestión</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Portal B2C (Cliente)</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Registro de Salto</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Reservas</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> RRHH y Tiempos</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Ventas Tienda</label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" checked style="accent-color: var(--brand-action);"> Videografía</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                            <label style="font-weight: 600; margin: 0;">Módulos Permitidos:</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button type="button" id="btn-usr-mods-all" style="font-size: 0.76rem; font-weight: 600; color: var(--brand-action); background: none; border: none; cursor: pointer; padding: 0;">Marcar todos</button>
+                                <span style="color: var(--text-muted); font-size: 0.76rem;">|</span>
+                                <button type="button" id="btn-usr-mods-none" style="font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 0;">Desmarcar todos</button>
+                            </div>
+                        </div>
+                        <div id="usr-allowed-modules-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: var(--bg-surface-hover); padding: 1rem; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/flota" checked style="accent-color: var(--brand-action);"> Asignación de Flota</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/asignacion" checked style="accent-color: var(--brand-action);"> Asignación de Recursos</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/caja" checked style="accent-color: var(--brand-action);"> Caja Menor</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/checkin" checked style="accent-color: var(--brand-action);"> Check-in</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/configuracion" checked style="accent-color: var(--brand-action);"> Configuración</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/historial" checked style="accent-color: var(--brand-action);"> Consulta Historial</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/dashboard" checked style="accent-color: var(--brand-action);"> Dashboard</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/facturacion" checked style="accent-color: var(--brand-action);"> Facturación</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/generar-factura" checked style="accent-color: var(--brand-action);"> Generar Factura</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/" checked style="accent-color: var(--brand-action);"> Itinerario (Inicio)</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/inventario" checked style="accent-color: var(--brand-action);"> Inventario</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/manifiesto" checked style="accent-color: var(--brand-action);"> Manifiesto</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/fids" checked style="accent-color: var(--brand-action);"> Pantalla FIDS</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/autogestion" checked style="accent-color: var(--brand-action);"> Portal Autogestión</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/b2c" checked style="accent-color: var(--brand-action);"> Portal B2C (Cliente)</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/registro-salto" checked style="accent-color: var(--brand-action);"> Registro de Salto</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/reservas" checked style="accent-color: var(--brand-action);"> Reservas</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/rrhh" checked style="accent-color: var(--brand-action);"> RRHH y Tiempos</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/tienda" checked style="accent-color: var(--brand-action);"> Ventas Tienda</label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="usr-module-chk" data-route="/videografia" checked style="accent-color: var(--brand-action);"> Videografía</label>
                         </div>
 
                         <div style="margin-top: 1.5rem;">
@@ -540,7 +547,7 @@ window.Modules.settings = {
                         if (editPassBox) editPassBox.style.display = 'block';
                         if (defaultPassInfo) defaultPassInfo.style.display = 'none';
                         if (roleSelect) {
-                            const roleTxt = tr.cells[2].innerText.trim();
+                            const roleTxt = targetUsr ? (targetUsr.role || '') : (tr.cells && tr.cells[2] ? tr.cells[2].innerText.trim() : '');
                             for (let i = 0; i < roleSelect.options.length; i++) {
                                 if (roleSelect.options[i].text === roleTxt || roleSelect.options[i].value === roleTxt) {
                                     roleSelect.selectedIndex = i;
@@ -548,6 +555,16 @@ window.Modules.settings = {
                                 }
                             }
                         }
+
+                        // Precargar módulos permitidos del usuario a editar
+                        document.querySelectorAll('.usr-module-chk').forEach(chk => {
+                            const r = chk.getAttribute('data-route');
+                            if (targetUsr && Array.isArray(targetUsr.allowedRoutes)) {
+                                chk.checked = targetUsr.allowedRoutes.includes(r);
+                            } else {
+                                chk.checked = true;
+                            }
+                        });
                         
                         if (nameInput) {
                             const btnCreate = document.getElementById('btn-create-usr');
@@ -1174,6 +1191,19 @@ window.Modules.settings = {
             }
         }
 
+        const btnModsAll = document.getElementById('btn-usr-mods-all');
+        const btnModsNone = document.getElementById('btn-usr-mods-none');
+        if (btnModsAll) {
+            btnModsAll.addEventListener('click', () => {
+                document.querySelectorAll('.usr-module-chk').forEach(chk => { chk.checked = true; });
+            });
+        }
+        if (btnModsNone) {
+            btnModsNone.addEventListener('click', () => {
+                document.querySelectorAll('.usr-module-chk').forEach(chk => { chk.checked = false; });
+            });
+        }
+
         document.getElementById('btn-create-usr').addEventListener('click', async (e) => {
             const name = document.getElementById('usr-name').value.trim();
             const username = document.getElementById('usr-username').value.trim();
@@ -1201,6 +1231,15 @@ window.Modules.settings = {
             if (!isEditing && !cedula) {
                 const msg = 'El número de cédula es obligatorio para generar la contraseña por defecto.';
                 return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Cédula Obligatoria' }) : alert(msg);
+            }
+
+            const allowedRoutes = Array.from(document.querySelectorAll('.usr-module-chk'))
+                .filter(chk => chk.checked)
+                .map(chk => chk.getAttribute('data-route'))
+                .filter(Boolean);
+            if (allowedRoutes.length === 0) {
+                const msg = 'Debes seleccionar al menos un módulo permitido para el usuario.';
+                return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Módulos Requeridos' }) : alert(msg);
             }
 
             // Al editar, si se ingresa una nueva contraseña, debe cumplir el factor de seguridad
@@ -1250,7 +1289,12 @@ window.Modules.settings = {
                     user.phone = phone;
                     user.email = email;
                     user.role = role;
-                    if (password) user.password = password;
+                    user.allowedRoutes = allowedRoutes;
+                    user.updatedAt = new Date().toISOString();
+                    if (password) {
+                        user.password = password;
+                        user.passwordUpdatedAt = user.updatedAt;
+                    }
                     if (photoData) user.photo = photoData;
                     if (window.showAlert) window.showAlert('Usuario actualizado con éxito.', { type: 'success', title: 'Usuario Actualizado' });
                     else alert('Usuario actualizado con éxito.');
@@ -1266,6 +1310,7 @@ window.Modules.settings = {
                     return window.showAlert ? window.showAlert(msg, { type: 'warning', title: 'Usuario Duplicado' }) : alert(msg);
                 }
                 const defaultPassword = `${cedula}Fp*`;
+                const nowIso = new Date().toISOString();
                 window.AppData.users.push({
                     id: 'usr_' + Date.now(),
                     name: name,
@@ -1274,10 +1319,12 @@ window.Modules.settings = {
                     phone: phone,
                     email: email,
                     role: role,
+                    allowedRoutes: allowedRoutes,
                     password: defaultPassword,
                     photo: photoData || '',
                     mustChangePassword: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: nowIso,
+                    updatedAt: nowIso
                 });
                 createdCredentials = { username, defaultPassword, name };
             }
@@ -1294,6 +1341,7 @@ window.Modules.settings = {
             if (phoneInput) phoneInput.value = '';
             if (emailInput) emailInput.value = '';
             document.getElementById('usr-role').selectedIndex = 0;
+            document.querySelectorAll('.usr-module-chk').forEach(chk => { chk.checked = true; });
             if (usrPassInput) {
                 usrPassInput.value = '';
                 usrPassInput.type = 'password';

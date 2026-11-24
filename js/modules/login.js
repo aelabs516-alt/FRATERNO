@@ -116,11 +116,10 @@ window.Modules.login = {
             sessionStorage.setItem('fraterno_role', String(matchedUser.role || '').toLowerCase().includes('venta') ? 'ventas' : 'admin');
             sessionStorage.setItem('fraterno_check_support_notifs', '1');
 
-            if (String(matchedUser.role || '').toLowerCase().includes('venta')) {
-                window.location.hash = '/reservas';
-            } else {
-                window.location.hash = '/';
-            }
+            const landing = (typeof window.getDefaultLandingRouteForUser === 'function')
+                ? window.getDefaultLandingRouteForUser(matchedUser)
+                : (String(matchedUser.role || '').toLowerCase().includes('venta') ? '/reservas' : '/');
+            window.location.hash = landing;
         }
 
         form.addEventListener('submit', async (e) => {

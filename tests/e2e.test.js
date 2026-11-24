@@ -3110,3 +3110,105 @@ test('3.23 [Primer Inicio de Sesión Multi-Dispositivo / Sin Caché] Usuario rec
     const forcedModal = userCtx.doc.getElementById('modal-change-password');
     assert.ok(forcedModal && forcedModal.dataset.forced === '1', 'Debe mostrar de inmediato el modal obligatorio para cambiar su contraseña inicial');
 });
+
+test('3.24 [Permisos de Módulos por Usuario] Al crear/editar usuario con módulos específicos solo se muestran y permiten esos módulos en el menú lateral y router', async () => {
+    const { win, doc, alerts } = buildSPAContext();
+    const shownAlerts = [];
+    win.showAlert = (msg, opts) => shownAlerts.push({ msg, opts });
+
+    win.AppData = win.createBlankAppData();
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.location.hash = '#/configuracion';
+    win.router();
+
+    // 1. Desmarcar todos -> no debe permitir crear usuario sin ningún módulo
+    doc.getElementById('usr-name').value = 'Diana Operaciones';
+    doc.getElementById('usr-username').value = 'diana_op';
+    doc.getElementById('usr-cedula').value = '1088990011';
+    doc.getElementById('usr-role').value = 'Operaciones';
+    doc.getElementById('btn-usr-mods-none').click();
+    doc.getElementById('btn-create-usr').click();
+    assert.equal(win.AppData.users.find(u => u.username === 'diana_op'), undefined, 'No debe crear usuario con 0 módulos seleccionados');
+
+    // 2. Seleccionar únicamente 3 módulos específicos: /checkin, /manifiesto y /registro-salto (sin Inicio /, ni Reservas, ni Configuración)
+    const selectedTargetRoutes = ['/checkin', '/manifiesto', '/registro-salto'];
+    doc.querySelectorAll('.usr-module-chk').forEach(chk => {
+        chk.checked = selectedTargetRoutes.includes(chk.getAttribute('data-route'));
+    });
+
+    doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 20));
+
+    const diana = win.AppData.users.find(u => u.username === 'diana_op');
+    assert.ok(diana, 'El usuario debe crearse correctamente');
+    assert.deepEqual([...diana.allowedRoutes].sort(), [...selectedTargetRoutes].sort(), 'Debe guardar únicamente las rutas de módulos seleccionadas');
+
+    if (doc.getElementById('btn-close-new-user-creds')) {
+        doc.getElementById('btn-close-new-user-creds').click();
+    }
+
+    // 3. Iniciar sesión como diana_op -> debe aterrizar en un módulo permitido y mostrar SOLO esos 3 módulos
+    win.sessionStorage.clear();
+    win.location.hash = '#/login';
+    win.router();
+
+    doc.getElementById('login-user').value = 'diana_op';
+    doc.getElementById('login-pass').value = '1088990011Fp*';
+    doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+    win.router();
+
+    assert.equal(win.location.hash, '#/registro-salto', 'Debe redirigir al primer módulo permitido cuando Inicio (/) no está asignado');
+
+    // Completar cambio obligatorio de clave en primer inicio de sesión
+    assert.ok(doc.getElementById('modal-change-password'));
+    doc.getElementById('pwd-new').value = 'DianaSegura#26';
+    doc.getElementById('pwd-confirm').value = 'DianaSegura#26';
+    doc.getElementById('form-change-password').dispatchEvent({ type: 'submit' });
+
+    const visibleNavRoutes = doc.querySelectorAll('.nav-item')
+        .filter(item => item.style.display !== 'none')
+        .map(item => item.getAttribute('data-route'));
+    assert.deepEqual(visibleNavRoutes.sort(), [...selectedTargetRoutes].sort(), 'El menú lateral solo debe mostrar los 3 módulos permitidos');
+
+    // Encabezados de secciones sin módulos visibles deben ocultarse
+    const visibleGroupLabels = doc.querySelectorAll('.nav-group-label')
+        .filter(lbl => lbl.style.display !== 'none')
+        .map(lbl => lbl.textContent.trim());
+    assert.ok(!visibleGroupLabels.includes('Sistema') && !visibleGroupLabels.includes('Finanzas y Ventas'), 'Las secciones sin módulos permitidos deben ocultarse');
+
+    // 4. Intentar acceder por URL a un módulo NO permitido (/configuracion o /) -> debe bloquear y redirigir
+    const alertsBeforeBlock = alerts.length;
+    win.location.hash = '#/configuracion';
+    win.router();
+    assert.ok(alerts.length > alertsBeforeBlock, 'Debe alertar acceso denegado a módulo no permitido');
+    assert.equal(win.location.hash, '#/registro-salto');
+
+    // 5. Editar usuario desde admin01 en Usuarios Activos -> debe precargar sus 3 módulos y permitir agregar /reservas
+    win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    win.sessionStorage.setItem('fraterno_role', 'admin');
+    win.location.hash = '#/configuracion';
+    win.router();
+
+    const editBtn = doc.querySelectorAll('#table-usr .btn-edit').find(b => b.getAttribute('data-id') === diana.id);
+    assert.ok(editBtn, 'Debe existir botón editar para diana_op en Usuarios Activos');
+    const usrTable = editBtn.closest('.crud-table');
+    usrTable.dispatchEvent({ type: 'click', target: editBtn });
+
+    const preloadedChecked = doc.querySelectorAll('.usr-module-chk')
+        .filter(c => c.checked)
+        .map(c => c.getAttribute('data-route'));
+    assert.deepEqual(preloadedChecked.sort(), [...selectedTargetRoutes].sort(), 'Al editar el usuario deben cargarse exactamente sus módulos actuales');
+
+    // Habilitar adicionalmente /reservas y guardar cambios
+    const chkReservas = doc.querySelectorAll('.usr-module-chk').find(c => c.getAttribute('data-route') === '/reservas');
+    chkReservas.checked = true;
+    doc.getElementById('btn-create-usr').click();
+    await new Promise(r => setTimeout(r, 20));
+
+    assert.ok(diana.allowedRoutes.includes('/reservas'), 'Al guardar cambios debe actualizarse allowedRoutes con /reservas');
+});

@@ -217,11 +217,19 @@ function reconcileUsersState(existingState, incomingState) {
         if (!match) {
             // Conservar usuarios creados en otra sesión que aún no estaban hidratados en la pestaña emisora
             incUsers.push(JSON.parse(JSON.stringify(prevU)));
-        } else if (prevU.passwordUpdatedAt && (!match.passwordUpdatedAt || prevU.passwordUpdatedAt > match.passwordUpdatedAt)) {
-            // Conservar el cambio de contraseña más reciente frente a pestañas con caché anterior
-            match.password = prevU.password;
-            match.mustChangePassword = prevU.mustChangePassword;
-            match.passwordUpdatedAt = prevU.passwordUpdatedAt;
+        } else {
+            if (prevU.passwordUpdatedAt && (!match.passwordUpdatedAt || prevU.passwordUpdatedAt > match.passwordUpdatedAt)) {
+                // Conservar el cambio de contraseña más reciente frente a pestañas con caché anterior
+                match.password = prevU.password;
+                match.mustChangePassword = prevU.mustChangePassword;
+                match.passwordUpdatedAt = prevU.passwordUpdatedAt;
+            }
+            if (prevU.updatedAt && (!match.updatedAt || prevU.updatedAt > match.updatedAt)) {
+                if (Array.isArray(prevU.allowedRoutes)) match.allowedRoutes = prevU.allowedRoutes;
+                if (prevU.role) match.role = prevU.role;
+                if (prevU.name) match.name = prevU.name;
+                match.updatedAt = prevU.updatedAt;
+            }
         }
     });
 
