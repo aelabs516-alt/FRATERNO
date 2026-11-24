@@ -254,7 +254,12 @@ if (window.AppData.pilots && window.AppData.pilots.length > 0) {
     window.saveAppData();
 }
 
-window.addEventListener('beforeunload', window.saveAppData);
+// Evitar sobrescribir PostgreSQL en beforeunload desde pestañas no autenticadas o sin sincronizar
+window.addEventListener('beforeunload', () => {
+    if (sessionStorage.getItem('fraterno_user')) {
+        window.saveToLocalStorageSafe(window.AppData);
+    }
+});
 
 const routes = {
     '/login': window.Modules.login,
@@ -669,31 +674,57 @@ window.router = router;
 // Listen to hash changes
 window.addEventListener('hashchange', router);
 
+// Sincronización con PostgreSQL sin caché (reutilizable desde login y arranque)
+let _activeStateSyncPromise = null;
+window.syncStateFromServer = function() {
+    if (_activeStateSyncPromise) return _activeStateSyncPromise;
+    _activeStateSyncPromise = (async () => {
+        try {
+            const res = await fetch('/api/state', {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data._resetVersion === CLEAN_RESET_VERSION) {
+                    const pwdMigrated = window.migrateMasterAdminPassword(data);
+                    window.AppData = data;
+                    window.AppData.users = (Array.isArray(data.users) && data.users.length > 0)
+                        ? data.users
+                        : [{ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: DEFAULT_MASTER_ADMIN_PASS, mustChangePassword: false }];
+                    window.AppData.supportTickets = window.AppData.supportTickets || [];
+                    if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
+                    window.saveToLocalStorageSafe(window.AppData);
+                    if (pwdMigrated) window.saveAppData();
+                    return true;
+                } else {
+                    // El servidor aún tenía datos de prueba o estado vacío previo: sincronizar el estado limpio
+                    const blank = window.createBlankAppData();
+                    window.AppData = blank;
+                    window.saveToLocalStorageSafe(blank);
+                    try { localStorage.setItem('factura_seq', '1'); } catch (e) {}
+                    window.saveAppData();
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.log('Running in local mode or API offline');
+        } finally {
+            _activeStateSyncPromise = null;
+        }
+        return false;
+    })();
+    return _activeStateSyncPromise;
+};
+
+// Iniciar hidratación temprana sin esperar imágenes externas
+document.addEventListener('DOMContentLoaded', () => {
+    window.syncStateFromServer();
+});
+
 // On load
 window.addEventListener('load', async () => {
-    try {
-        const res = await fetch('/api/state');
-        if (res.ok) {
-            const data = await res.json();
-            if (data && data._resetVersion === CLEAN_RESET_VERSION) {
-                const pwdMigrated = window.migrateMasterAdminPassword(data);
-                window.AppData = data;
-                window.AppData.supportTickets = window.AppData.supportTickets || [];
-                if (window.TariffGuard) window.TariffGuard.ensureVersionMetadata();
-                window.saveToLocalStorageSafe(window.AppData);
-                if (pwdMigrated) window.saveAppData();
-            } else {
-                // El servidor aún tenía datos de prueba o estado vacío previo: sincronizar el estado limpio
-                const blank = window.createBlankAppData();
-                window.AppData = blank;
-                window.saveToLocalStorageSafe(blank);
-                try { localStorage.setItem('factura_seq', '1'); } catch (e) {}
-                window.saveAppData();
-            }
-        }
-    } catch (e) {
-        console.log('Running in local mode or API offline');
-    }
+    await window.syncStateFromServer();
     // Force re-render if user clicks the sidebar link of the module they are already in
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {

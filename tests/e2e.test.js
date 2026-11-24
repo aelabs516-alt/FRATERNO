@@ -3058,3 +3058,55 @@ test('3.22 [Registro de Salto - Condición Médica] Campo Con Condición Médica
     assert.ok(paxListHtml.includes('Valeria Castro') && paxListHtml.includes('fa-heartbeat') && paxListHtml.includes('Asma leve controlada con inhalador'), 'El filtro de Reservas debe mostrar a Valeria con su condición médica reportada');
     assert.ok(!paxListHtml.includes('Tomás Ruiz'), 'El filtro Con Condición Médica debe ocultar pasajeros sin condición médica');
 });
+
+test('3.23 [Primer Inicio de Sesión Multi-Dispositivo / Sin Caché] Usuario recién creado autentica desde otro navegador/incógnito sin Acceso Denegado ni borrado en beforeunload', async () => {
+    // Contexto B (otro navegador / celular / modo incógnito ya abierto en #/login ANTES de crear el usuario)
+    const userCtx = buildSPAContext();
+    userCtx.win.location.hash = '#/login';
+    userCtx.win.router();
+
+    // Contexto A (sesión de admin01 creando el nuevo usuario)
+    const adminCtx = buildSPAContext();
+    adminCtx.win.AppData = adminCtx.win.createBlankAppData();
+    adminCtx.win.sessionStorage.setItem('fraterno_user', JSON.stringify({
+        id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador'
+    }));
+    adminCtx.win.sessionStorage.setItem('fraterno_role', 'admin');
+    adminCtx.win.location.hash = '#/configuracion';
+    adminCtx.win.router();
+
+    adminCtx.doc.getElementById('usr-name').value = 'Pedro Operaciones';
+    adminCtx.doc.getElementById('usr-username').value = 'PedroOp';
+    adminCtx.doc.getElementById('usr-cedula').value = '1045789123';
+    adminCtx.doc.getElementById('usr-role').value = 'Operaciones';
+    adminCtx.doc.getElementById('btn-create-usr').click();
+
+    await new Promise(r => setTimeout(r, 35));
+
+    // Simular recarga (beforeunload) en la pestaña no autenticada del nuevo usuario -> NO debe borrar PostgreSQL
+    userCtx.doc.dispatchEvent({ type: 'win_beforeunload' });
+    await new Promise(r => setTimeout(r, 20));
+
+    const serverCheck = await requestApp('GET', '/api/state');
+    assert.ok(String(serverCheck.headers.get('cache-control') || '').includes('no-store'), 'GET /api/state debe incluir Cache-Control: no-store');
+    const serverData = await serverCheck.json();
+    assert.ok(serverData.users.some(u => u.username === 'PedroOp'), 'El usuario recién creado debe permanecer intacto en el servidor');
+
+    // En Contexto B (donde en memoria aún solo existía admin01), ingresar con mayúsculas distintas y espacio copiado al final
+    const deniedAlerts = [];
+    userCtx.win.showAlert = (msg, opts) => deniedAlerts.push({ msg, opts });
+
+    userCtx.doc.getElementById('login-user').value = 'pedroop';
+    userCtx.doc.getElementById('login-pass').value = '1045789123Fp* ';
+    userCtx.doc.getElementById('login-form').dispatchEvent({ type: 'submit' });
+
+    await new Promise(r => setTimeout(r, 35));
+    userCtx.win.router();
+
+    assert.equal(deniedAlerts.length, 0, 'No debe registrar Acceso Denegado en el primer ingreso del usuario recién creado');
+    const loggedSession = JSON.parse(userCtx.win.sessionStorage.getItem('fraterno_user') || 'null');
+    assert.ok(loggedSession && loggedSession.username === 'PedroOp', 'Debe iniciar sesión sincronizando automáticamente desde el servidor');
+
+    const forcedModal = userCtx.doc.getElementById('modal-change-password');
+    assert.ok(forcedModal && forcedModal.dataset.forced === '1', 'Debe mostrar de inmediato el modal obligatorio para cambiar su contraseña inicial');
+});

@@ -170,6 +170,9 @@ function isSafePlainObject(obj) {
 
 // Obtener estado (reemplaza a loadAppData)
 app.get('/api/state', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     try {
         if (dbConnected) {
             const result = await pool.query('SELECT data FROM app_state WHERE id = 1');
@@ -193,6 +196,42 @@ app.get('/api/state', async (req, res) => {
     }
 });
 
+function reconcileUsersState(existingState, incomingState) {
+    if (!incomingState || typeof incomingState !== 'object') return;
+    const prevDeleted = (existingState && Array.isArray(existingState.deletedUserIds)) ? existingState.deletedUserIds : [];
+    const nextDeleted = Array.isArray(incomingState.deletedUserIds) ? incomingState.deletedUserIds : [];
+    const deletedSet = new Set([...prevDeleted, ...nextDeleted].filter(Boolean));
+    incomingState.deletedUserIds = Array.from(deletedSet);
+
+    const incUsers = Array.isArray(incomingState.users)
+        ? incomingState.users.filter(u => u && !deletedSet.has(u.id))
+        : [];
+    const prevUsers = (existingState && Array.isArray(existingState.users)) ? existingState.users : [];
+
+    prevUsers.forEach(prevU => {
+        if (!prevU || (prevU.id && deletedSet.has(prevU.id))) return;
+        const prevUname = String(prevU.username || '').trim().toLowerCase();
+        const match = incUsers.find(u =>
+            u && ((prevU.id && u.id === prevU.id) || (prevUname && String(u.username || '').trim().toLowerCase() === prevUname))
+        );
+        if (!match) {
+            // Conservar usuarios creados en otra sesión que aún no estaban hidratados en la pestaña emisora
+            incUsers.push(JSON.parse(JSON.stringify(prevU)));
+        } else if (prevU.passwordUpdatedAt && (!match.passwordUpdatedAt || prevU.passwordUpdatedAt > match.passwordUpdatedAt)) {
+            // Conservar el cambio de contraseña más reciente frente a pestañas con caché anterior
+            match.password = prevU.password;
+            match.mustChangePassword = prevU.mustChangePassword;
+            match.passwordUpdatedAt = prevU.passwordUpdatedAt;
+        }
+    });
+
+    if (incUsers.length === 0) {
+        incUsers.push({ id: 'usr_admin', name: 'Admin Master', username: 'admin01', role: 'Administrador', password: DEFAULT_MASTER_ADMIN_PASS, mustChangePassword: false });
+    }
+    incomingState.users = incUsers;
+    migrateMasterAdminPassword(incomingState);
+}
+
 // Guardar estado (reemplaza a saveAppData) con validación de payload
 app.post('/api/state', async (req, res) => {
     try {
@@ -203,6 +242,16 @@ app.post('/api/state', async (req, res) => {
         if (!newData._resetVersion) {
             newData._resetVersion = CLEAN_RESET_VERSION;
         }
+
+        let currentExisting = memoryFallbackState;
+        if (dbConnected) {
+            const curRes = await pool.query('SELECT data FROM app_state WHERE id = 1');
+            if (curRes.rows.length > 0 && curRes.rows[0].data) {
+                currentExisting = curRes.rows[0].data;
+            }
+        }
+        reconcileUsersState(currentExisting, newData);
+
         memoryFallbackState = JSON.parse(JSON.stringify(newData));
 
         if (dbConnected) {

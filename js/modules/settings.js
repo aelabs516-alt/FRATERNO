@@ -498,6 +498,10 @@ window.Modules.settings = {
                                         if (window.showAlert) window.showAlert('Esta cuenta está protegida por seguridad y no puede eliminarse.', { type: 'danger', title: 'Acción Protegida' });
                                         return;
                                     }
+                                    window.AppData.deletedUserIds = Array.isArray(window.AppData.deletedUserIds) ? window.AppData.deletedUserIds : [];
+                                    if (!window.AppData.deletedUserIds.includes(id)) {
+                                        window.AppData.deletedUserIds.push(id);
+                                    }
                                     window.AppData.users.splice(idx, 1);
                                     if (window.saveAppData) window.saveAppData();
                                 }
@@ -1170,7 +1174,7 @@ window.Modules.settings = {
             }
         }
 
-        document.getElementById('btn-create-usr').addEventListener('click', (e) => {
+        document.getElementById('btn-create-usr').addEventListener('click', async (e) => {
             const name = document.getElementById('usr-name').value.trim();
             const username = document.getElementById('usr-username').value.trim();
             const cedulaInput = document.getElementById('usr-cedula');
@@ -1220,6 +1224,7 @@ window.Modules.settings = {
             const editPassBox = document.getElementById('usr-edit-password-fields');
             const defaultPassInfo = document.getElementById('usr-default-pass-info');
 
+            let createdCredentials = null;
             if (isEditing) {
                 const id = btn.dataset.editId;
                 const user = window.AppData.users.find(u => u.id === id);
@@ -1274,11 +1279,14 @@ window.Modules.settings = {
                     mustChangePassword: true,
                     createdAt: new Date().toISOString()
                 });
-                showNewUserCredentialsModal(username, defaultPassword, name);
+                createdCredentials = { username, defaultPassword, name };
             }
 
-            if (window.saveAppData) window.saveAppData();
             if (window.renderUsersTable) window.renderUsersTable();
+            const savePromise = window.saveAppData ? window.saveAppData() : null;
+            if (createdCredentials) {
+                showNewUserCredentialsModal(createdCredentials.username, createdCredentials.defaultPassword, createdCredentials.name);
+            }
 
             document.getElementById('usr-name').value = '';
             document.getElementById('usr-username').value = '';
@@ -1297,6 +1305,9 @@ window.Modules.settings = {
             if (photoInput) {
                 photoInput.value = '';
                 photoInput.dataset.base64 = '';
+            }
+            if (savePromise && typeof savePromise.then === 'function') {
+                try { await savePromise; } catch (err) {}
             }
         });
 
